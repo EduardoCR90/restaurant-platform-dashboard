@@ -292,3 +292,97 @@ describe('Edición Sanity (API sustituida; nunca producción)', () => {
     ).toThrow();
   });
 });
+
+it('los nuevos campos editoriales completan save/publish sin tocar la publicación al guardar', async () => {
+  const fixture = JSON.parse(
+    await (
+      await import('node:fs/promises')
+    ).readFile(new URL('./fixtures/editorial-contract.json', import.meta.url), 'utf8'),
+  );
+  const f = fakeStore();
+  f.docs.set('p', {
+    ...page,
+    _id: 'p',
+    _rev: 'published-original',
+    _type: 'page',
+    unknownExisting: 'preservado',
+  });
+  const document = { ...page, composition: fixture.page.composition };
+  const saved = (await executeContent(
+    {
+      restaurantId,
+      action: 'save',
+      kind: 'page',
+      id: 'p',
+      publishedRev: 'published-original',
+      draftRev: null,
+      document,
+    },
+    f.deps,
+  )) as { draftRev: string; publishedRev: string };
+  expect(f.docs.get('p')?.composition).toBeUndefined();
+  expect(f.docs.get('drafts.p')?.composition).toEqual(document.composition);
+  expect(f.docs.get('drafts.p')?.unknownExisting).toBe('preservado');
+  await executeContent(
+    {
+      restaurantId,
+      action: 'publish',
+      kind: 'page',
+      id: 'p',
+      publishedRev: saved.publishedRev,
+      draftRev: saved.draftRev,
+    },
+    f.deps,
+  );
+  expect(f.docs.get('p')?.composition).toEqual(document.composition);
+  expect(f.docs.get('p')?.unknownExisting).toBe('preservado');
+  expect(f.docs.has('drafts.p')).toBe(false);
+});
+
+it('SEO social y textos globales pasan por el mismo control de referencias y borradores', async () => {
+  const f = fakeStore();
+  const asset = 'image-offline-1600x1100-jpg';
+  f.docs.set(asset, { _id: asset, _type: 'sanity.imageAsset', _rev: 'image-fixture' });
+  const settings = {
+    name: 'Restaurante de ensayo',
+    tagline: 'Cocina',
+    concept: 'Concepto',
+    address: 'Dirección de ensayo',
+    email: 'test@example.test',
+    phone: '+34922000000',
+    isFictional: true,
+    hours: [{ _key: 'hours1', days: 'Lunes', time: '13:00–16:00' }],
+    modules: [{ key: 'reservations', enabled: false }],
+  };
+  f.docs.set('restaurant-settings', {
+    ...settings,
+    _id: 'restaurant-settings',
+    _type: 'settings',
+    _rev: 'settings-original',
+  });
+  const document = {
+    ...settings,
+    editorial: { signature: 'Otra firma', footer: { link: null } },
+    socialImage: {
+      _type: 'editorialImage',
+      asset: { _type: 'reference', _ref: asset },
+      alt: 'Imagen social del ensayo',
+    },
+  };
+  await executeContent(
+    {
+      restaurantId,
+      action: 'save',
+      kind: 'settings',
+      id: 'restaurant-settings',
+      publishedRev: 'settings-original',
+      draftRev: null,
+      document,
+    },
+    f.deps,
+  );
+  expect(f.docs.get('drafts.restaurant-settings')?.socialImage).toEqual(document.socialImage);
+  expect(f.docs.get('drafts.restaurant-settings')?.editorial).toEqual(document.editorial);
+  expect(f.docs.get('drafts.restaurant-settings')?.modules).toEqual(settings.modules);
+  expect(f.docs.get('restaurant-settings')?.socialImage).toBeUndefined();
+});

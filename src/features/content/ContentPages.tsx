@@ -12,7 +12,7 @@ import {
 import { contentApi } from '../../services/platform';
 import { useRestaurant } from '../restaurants/RestaurantProvider';
 import { Feedback, Loading } from '../../components/Feedback';
-import { fields, initialDocument, normalizeDocument, kindLabels } from './fields';
+import { contentFields, initialDocument, normalizeDocument, kindLabels } from './fields';
 import { FormFields, type ReferenceOptions } from './Fields';
 import { BlockEditor } from './BlockEditor';
 export function ContentGate({ children }: { children: React.ReactNode }) {
@@ -310,9 +310,16 @@ export function ContentEditor() {
           </div>
           {(!error || Object.keys(document).length > 0) && (
             <form className="editor-form" onSubmit={save}>
+              {kind === 'page' && (
+                <p>
+                  Sin bloques se conserva la composición original de las páginas habituales. Añadir
+                  bloques sustituye esa composición completa; no los añadas para cambiar solo un
+                  texto.
+                </p>
+              )}
               <fieldset disabled={busy}>
                 <FormFields
-                  definitions={fields[kind]}
+                  definitions={contentFields(kind, document)}
                   value={document}
                   onChange={change}
                   options={options}

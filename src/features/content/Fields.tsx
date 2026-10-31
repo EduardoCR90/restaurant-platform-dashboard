@@ -314,6 +314,14 @@ function FieldInput({
     return (
       <fieldset>
         <legend>{field.label}</legend>
+        {field.resettable && (
+          <>
+            <p>Sin personalizar conserva la composición y el texto originales.</p>
+            <button type="button" onClick={() => onChange(undefined)}>
+              Restaurar texto original: {field.label}
+            </button>
+          </>
+        )}
         <FormFields
           definitions={field.fields || []}
           value={data}
@@ -333,6 +341,23 @@ function FieldInput({
     return (
       <fieldset>
         <legend>{field.label}</legend>
+        {field.resettable && (
+          <>
+            <p>
+              {value === null
+                ? 'Enlace oculto.'
+                : value === undefined
+                  ? 'Se utiliza el enlace original.'
+                  : 'Enlace personalizado.'}
+            </p>
+            <button type="button" onClick={() => onChange(undefined)}>
+              Restaurar enlace original
+            </button>
+            <button type="button" onClick={() => onChange(null)}>
+              Ocultar enlace
+            </button>
+          </>
+        )}
         {value ? (
           <>
             <label>

@@ -40,3 +40,7 @@ npm run check:edge # requiere Deno 2
 - [Pruebas, estado real y limitaciones](docs/testing.md).
 
 No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/Vercel según corresponda. La publishable key es pública; RLS y las Edge Functions deciden los permisos.
+
+## Compatibilidad editorial — iteración 1
+
+[Inventario completo, contrato y validación coordinada](docs/editorial-compatibility.md). Los nuevos campos son opcionales; la barrera backend de staging sigue intacta.
