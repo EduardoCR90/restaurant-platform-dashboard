@@ -32,6 +32,11 @@ jobs:
         with:
           deno-version: v2.x
       - run: npm run check:edge
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+      - name: Verify CLI packaging against localhost (no cloud token)
+        run: node scripts/check-edge-package.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: platform-build-review

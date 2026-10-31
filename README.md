@@ -36,6 +36,7 @@ npm run check:edge # requiere Deno 2
 - [Roles, RLS y límites de confianza](docs/security.md).
 - [Contratos Sanity y edición](docs/sanity.md).
 - [Vercel, móvil y trabajo desde Codex Cloud](docs/deployment.md).
+- [Despliegue manual de Edge Functions desde GitHub](docs/edge-deployment.md).
 - [Pruebas, estado real y limitaciones](docs/testing.md).
 
 No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/Vercel según corresponda. La publishable key es pública; RLS y las Edge Functions deciden los permisos.

@@ -52,11 +52,13 @@ Después, el administrador global puede gestionar restaurantes/membresías/módu
 
 ## Edge Functions
 
-Desde una terminal segura con Supabase CLI autenticada al proyecto correcto:
+También puedes usar el [workflow manual de GitHub Actions](edge-deployment.md), con CLI 2.122.0 y el secreto de Actions ya configurado. No se ejecuta por push ni por PR.
+
+Desde una terminal segura con Supabase CLI 2.122.0 autenticada al proyecto correcto:
 
 ```bash
-supabase functions deploy content --project-ref wanrzgumoamryuybmopa
-supabase functions deploy platform-admin --project-ref wanrzgumoamryuybmopa
+supabase functions deploy content --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
+supabase functions deploy platform-admin --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
 ```
 
 Los imports alcanzan `shared/` desde las funciones. `deno.json` fija dependencias npm. `verify_jwt=false` es intencional para compatibilidad con claves publishable/JWT modernos: cada handler exige Bearer y verifica con `auth.getUser`; no hay rutas de datos sin autenticar. No despliegues una versión que omita esa comprobación. CORS exige ALLOWED_ORIGINS y rechaza por defecto.
