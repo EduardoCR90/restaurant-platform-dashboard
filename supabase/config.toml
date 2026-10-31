@@ -1,0 +1,13 @@
+project_id = "restaurant-platform-dashboard"
+[api]
+enabled = true
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/auth/update-password"]
+enable_signup = false
+[functions.content]
+verify_jwt = false
+[functions.platform-admin]
+verify_jwt = false

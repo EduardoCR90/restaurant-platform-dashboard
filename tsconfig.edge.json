@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"], "noUnusedLocals": true, "noUnusedParameters": true },
+  "include": ["shared", "supabase/functions/**/*.ts", "supabase/deno-runtime.d.ts"]
+}
