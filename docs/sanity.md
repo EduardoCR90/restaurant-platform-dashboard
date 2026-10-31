@@ -51,3 +51,7 @@ La UI sube bytes al backend autenticado. El servidor limita tamaño, valida MIME
 Publicar cambia Sanity, no el HTML ya generado. Se conserva el workflow de Astro/GitHub Pages existente. Si su webhook está activo, la publicación lo activará según su configuración; si no, ejecuta el workflow manual de la web pública. Este dashboard no crea, modifica o acredita un webhook, ni pide su token al navegador.
 
 No pruebes publicaciones desde este dashboard sobre Salitre hasta configurar y validar una integración de ensayo. Las pruebas locales mockean la API; ninguna escritura real se realizó para comprobar esta fase.
+
+## Contrato editorial aditivo — iteración 1
+
+La revisión coordinada parte de Studio main 304c823 y Astro main adc9401. Añade page.composition, settings.editorial y settings.socialImage sin cambiar los documentos existentes ni el contrato salitre-v1. [Inventario y semántica de herencia](editorial-compatibility.md). Los formularios no convierten páginas a bloques y los defaults no se guardan automáticamente en Sanity. La barrera de staging continúa vigente.

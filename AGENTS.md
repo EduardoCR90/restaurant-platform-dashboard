@@ -8,7 +8,7 @@
 - Durante esta fase toda escritura Sanity pasa por el adaptador HTTP y exige dataset staging. No añadir flags de entorno, bypasses de administrador o endpoints directos para habilitar otros datasets.
 - Los tokens de Sanity son secretos backend por integración. Ningún secreto con VITE_. No imprimir respuestas Auth, cabeceras o variables de entorno.
 - Mantener integración exclusiva por proyecto/dataset. Compartir un dataset entre restaurantes requiere un modelo de autorización distinto y una migración revisada.
-- Contratos de Sanity: fuente de verdad studio-salitre-restaurant/schemaTypes en commit f9cd750417306fbc6dd10de3fb29688856d2d915. Preservar campos desconocidos existentes al guardar. No createOrReplace ni borrar documentos publicados.
+- Contratos de Sanity: fuente de verdad studio-salitre-restaurant/schemaTypes (iteración 1: ver docs/editorial-compatibility.md y la fixture común). Preservar campos desconocidos existentes al guardar. No createOrReplace ni borrar documentos publicados.
 - Revisiones optimistas obligatorias en ediciones/publicaciones. Los diez bloques existentes conservan nombres, campos y claves.
 - No introducir autenticación demo en producto. Los mocks solo viven en tests.
 - Ejecutar npm ci, lint, format:check, typecheck, test, build y test:e2e. Edge: tsc -p tsconfig.edge.json y deno check mediante npm run check:edge. No marcar integraciones remotas como verificadas por pruebas con mocks.

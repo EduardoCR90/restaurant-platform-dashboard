@@ -1,4 +1,5 @@
 import type { Kind, Block } from '../../../shared/content';
+import { compositionField, editorialField, compositionSections } from './editorial-fields';
 export type Field = {
   name: string;
   label: string;
@@ -21,6 +22,7 @@ export type Field = {
   initial?: Record<string, unknown>;
   target?: 'category' | 'dish';
   required?: boolean;
+  resettable?: boolean;
 };
 const title: Field = { name: 'title', label: 'Título', type: 'textarea', required: true };
 const picture: Field = { name: 'image', label: 'Imagen', type: 'image' };
@@ -75,6 +77,7 @@ export const fields: Record<Kind, Field[]> = {
     picture,
     seo,
     { name: 'noindex', label: 'Excluir de buscadores', type: 'boolean' },
+    compositionField,
   ],
   category: [
     { name: 'name', label: 'Nombre', type: 'text', required: true },
@@ -134,6 +137,8 @@ export const fields: Record<Kind, Field[]> = {
         { name: 'cards', label: 'Composición', type: 'select', options: ['editorial', 'compact'] },
       ],
     },
+    { name: 'socialImage', label: 'Imagen social predeterminada', type: 'image' },
+    editorialField,
   ],
   story: [
     title,
@@ -277,4 +282,23 @@ export function normalizeDocument(
         : {}),
     ...value,
   };
+}
+
+export function contentFields(kind: Kind, document: Record<string, unknown>): Field[] {
+  if (kind !== 'page') return fields[kind];
+  const slug = (document.slug as { current?: unknown } | undefined)?.current;
+  const sections = compositionSections(slug);
+  const hasBlocks = Array.isArray(document.blocks) && document.blocks.length > 0;
+  return fields.page.flatMap((field) =>
+    field.name !== 'composition'
+      ? [field]
+      : hasBlocks || !sections.length
+        ? []
+        : [
+            {
+              ...field,
+              fields: field.fields?.filter((section) => sections.includes(section.name)),
+            },
+          ],
+  );
 }

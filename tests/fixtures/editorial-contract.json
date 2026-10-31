@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "page": {
+    "composition": {
+      "hero": {
+        "caption": "01 / Una mesa abierta al Atlántico",
+        "coordinates": "28°28′ N\n16°15′ O",
+        "sideNote": "TIERRA · FUEGO · ATLÁNTICO",
+        "link": {
+          "label": "Descubrir la carta",
+          "href": "/carta/"
+        }
+      },
+      "essence": {
+        "eyebrow": "01 — Nuestra esencia",
+        "heading": {
+          "before": "Lo extraordinario\nestá en ",
+          "emphasis": "el origen.",
+          "after": ""
+        },
+        "link": {
+          "label": "La filosofía de la casa",
+          "href": "/restaurante/"
+        }
+      },
+      "featured": {
+        "eyebrow": "02 — En temporada",
+        "heading": {
+          "before": "La isla, ",
+          "emphasis": "en tres actos.",
+          "after": ""
+        },
+        "link": {
+          "label": "Ver toda la carta",
+          "href": "/carta/"
+        },
+        "empty": "La próxima selección de temporada está en preparación. Consulta nuestra carta."
+      },
+      "storyPreview": {
+        "eyebrow": "03 — La casa",
+        "link": {
+          "label": "Nuestra historia",
+          "href": "/restaurante/"
+        }
+      },
+      "story": {
+        "eyebrow": "Una historia de pertenencia"
+      },
+      "chef": {
+        "eyebrow": "Al frente de la cocina"
+      },
+      "gallery": {
+        "eyebrow": "El arte de recibir",
+        "heading": {
+          "before": "Luz, materia ",
+          "emphasis": "y calma.",
+          "after": ""
+        },
+        "empty": "Próximamente, nuevas miradas a la casa."
+      },
+      "contact": {
+        "eyebrow": "01 — Tu mesa",
+        "heading": {
+          "before": "Nos vemos ",
+          "emphasis": "aquí.",
+          "after": ""
+        },
+        "providerLabel": "Reservar con nuestro proveedor",
+        "hoursTitle": "Cuándo venir",
+        "addressTitle": "Dónde encontrarnos",
+        "unavailable": "Las reservas todavía no están activas. Este espacio está preparado para conectar un proveedor real; no se tramita ni se confirma ninguna reserva."
+      }
+    }
+  },
+  "settings": {
+    "editorial": {
+      "signature": "COCINA DE ORIGEN",
+      "footer": {
+        "line": "El lujo de estar aquí.",
+        "link": {
+          "label": "Encuéntranos",
+          "href": "/reservas/"
+        },
+        "backToTop": "Volver arriba"
+      },
+      "reservation": {
+        "eyebrow": "El tiempo, a tu favor",
+        "heading": {
+          "before": "Quédate\n",
+          "emphasis": "un poco más.",
+          "after": ""
+        },
+        "link": {
+          "label": "Tu próxima mesa",
+          "href": "/reservas/"
+        }
+      },
+      "menu": {
+        "emptyCategory": "Estamos preparando esta selección.",
+        "emptyMenu": "La carta de temporada estará disponible próximamente.",
+        "disclaimer": "Precios en euros. IVA incluido. Comunica cualquier alergia o intolerancia al equipo; puede haber trazas por contaminación cruzada. La disponibilidad sigue el ritmo de la temporada.",
+        "noAllergens": "Sin alérgenos declarados",
+        "unavailable": "Temporalmente no disponible"
+      }
+    }
+  }
+}

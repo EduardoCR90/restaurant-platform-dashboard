@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { editorialSchemas } from './editorial.ts';
 const text = z.string().trim().min(1).max(20000);
 const key = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 export const documentId = z
@@ -54,6 +55,7 @@ export const link = z.object({
   label: text.max(120),
   href: z.string().max(2000).refine(validLink, 'Usa HTTPS o una ruta interna'),
 });
+const { composition, editorial } = editorialSchemas(link);
 const common = {
   _key: key,
   title: z.string().max(2000).optional(),
@@ -241,14 +243,15 @@ const theme = z.object({
 });
 export const documentSchemas = {
   page: z.object({
+    composition: composition.nullish(),
     title: text,
     slug: z.object({ _type: z.literal('slug').optional(), current: slug }),
     status: z.enum(['published', 'hidden']).optional(),
     showInNavigation: z.boolean().optional(),
-    navigationLabel: z.string().max(120).optional(),
+    navigationLabel: z.string().max(120).nullish(),
     navigationOrder: order.optional(),
-    eyebrow: z.string().optional(),
-    intro: z.string().optional(),
+    eyebrow: z.string().nullish(),
+    intro: z.string().nullish(),
     image: image.nullish(),
     blocks: z.array(blockSchema).max(100).optional(),
     seo,
@@ -256,7 +259,7 @@ export const documentSchemas = {
   }),
   category: z.object({
     name: text.max(200),
-    note: z.string().optional(),
+    note: z.string().nullish(),
     order,
     visible: z.boolean().optional(),
   }),
@@ -278,6 +281,8 @@ export const documentSchemas = {
     tags: strings.optional(),
   }),
   settings: z.object({
+    editorial: editorial.nullish(),
+    socialImage: image.nullish(),
     name: text.max(120),
     tagline: text,
     concept: text,
@@ -301,7 +306,7 @@ export const documentSchemas = {
       .min(1)
       .max(50),
     logo: image.nullish(),
-    theme: theme.optional(),
+    theme: theme.nullish(),
   }),
   story: z.object({
     title: text,

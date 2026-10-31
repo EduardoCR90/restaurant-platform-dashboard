@@ -19,6 +19,7 @@ const expected = {
     'supabase/functions/_shared/sanity.ts',
     'shared/editor-service.ts',
     'shared/content.ts',
+    'shared/editorial.ts',
   ],
   'platform-admin': [
     'supabase/functions/platform-admin/index.ts',
@@ -28,6 +29,7 @@ const expected = {
     'shared/access.ts',
     'shared/editor-service.ts',
     'shared/content.ts',
+    'shared/editorial.ts',
   ],
 };
 const uploads = new Map();
