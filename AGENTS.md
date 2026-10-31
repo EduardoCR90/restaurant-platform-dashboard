@@ -14,3 +14,5 @@
 - Ejecutar npm ci, lint, format:check, typecheck, test, build y test:e2e. Edge: tsc -p tsconfig.edge.json y deno check mediante npm run check:edge. No marcar integraciones remotas como verificadas por pruebas con mocks.
 - No ejecutar migraciones remotas, bootstrap, escrituras Sanity, merges o despliegues sin autorización explícita. CI solo usa bases de ensayo en memoria y mocks.
 - PRs pequeñas cuando se continúe el desarrollo. No modificar web pública ni Studio sin justificar compatibilidad.
+
+- Iteración 3: conservar descarte exclusivo de drafts y retirada reversible por visible/status. No borrar publicaciones ni assets. Respetar referencias, rutas estructurales, revisiones y la guarda común antes de cambiar documento/restaurante; ver docs/editorial-actions.md.

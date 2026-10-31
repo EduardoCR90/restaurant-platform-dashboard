@@ -44,7 +44,7 @@ async function mockedWorkspace(page: Page) {
     id: 'page1',
     kind: 'page',
     draftRev: null as string | null,
-    publishedRev: 'published-1',
+    publishedRev: 'published-1' as string | null,
     document: {
       title: 'Experiencias',
       slug: { _type: 'slug', current: 'experiencias' },
@@ -53,6 +53,8 @@ async function mockedWorkspace(page: Page) {
       seo: { title: 'Experiencias', description: 'Descripción de ensayo' },
     },
   };
+  let publishedDocument = structuredClone(snapshot.document);
+  let removed = false;
   await page.route(`https://${project}.supabase.co/**`, async (route) => {
     const url = new URL(route.request().url());
     let body: unknown = {};
@@ -90,19 +92,72 @@ async function mockedWorkspace(page: Page) {
       };
       if (request.action === 'list')
         body =
-          request.kind === 'page'
-            ? [{ id: 'page1', title: 'Experiencias', draft: false, published: true }]
+          request.kind === 'page' && !removed
+            ? [
+                {
+                  id: snapshot.id,
+                  title: snapshot.document.title,
+                  draft: !!snapshot.draftRev,
+                  published: !!snapshot.publishedRev,
+                  withdrawn: (snapshot as { withdrawn?: boolean }).withdrawn || false,
+                },
+              ]
             : [];
       if (request.action === 'get') body = snapshot;
       if (request.action === 'save') {
-        expect(request.publishedRev).toBe('published-1');
+        expect(request.publishedRev).toBe(snapshot.publishedRev);
         snapshot = { ...snapshot, draftRev: 'draft-1', document: request.document! };
         body = snapshot;
       }
       if (request.action === 'publish') {
         expect(request.draftRev).toBe('draft-1');
         snapshot = { ...snapshot, draftRev: null, publishedRev: 'published-2' };
+        publishedDocument = structuredClone(snapshot.document);
         body = snapshot;
+      }
+      if (request.action === 'withdraw') {
+        snapshot = {
+          ...snapshot,
+          draftRev: null,
+          publishedRev: 'withdrawn-rev',
+          document: { ...snapshot.document, status: 'hidden' },
+          withdrawn: true,
+        } as typeof snapshot;
+        publishedDocument = structuredClone(snapshot.document);
+        body = snapshot;
+      }
+      if (request.action === 'restore') {
+        snapshot = {
+          ...snapshot,
+          draftRev: null,
+          publishedRev: 'restored-rev',
+          document: { ...snapshot.document, status: 'published' },
+          withdrawn: false,
+        } as typeof snapshot;
+        publishedDocument = structuredClone(snapshot.document);
+        body = snapshot;
+      }
+      if (request.action === 'create') {
+        snapshot = {
+          id: 'new-generated',
+          kind: 'page',
+          draftRev: 'new-draft',
+          publishedRev: null,
+          document: request.document!,
+        };
+        removed = false;
+        body = snapshot;
+      }
+      if (request.action === 'discard') {
+        const existing = !!snapshot.publishedRev;
+        snapshot = { ...snapshot, draftRev: null, document: publishedDocument };
+        removed = !existing;
+        body = {
+          discarded: true,
+          id: snapshot.id,
+          kind: 'page',
+          snapshot: existing ? snapshot : null,
+        };
       }
     }
     await route.fulfill({ json: body });
@@ -135,12 +190,101 @@ test('selección autorizada, edición, guardado y publicación (API de ensayo)',
     'Borrador guardado. Todavía no se ha publicado.',
   );
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Publicar borrador ↗' }).click();
+  await page.getByRole('button', { name: 'Publicar cambios ↗' }).click();
   await expect(page.getByRole('status')).toContainText('Contenido publicado en Sanity');
   await page.getByLabel('Restaurante', { exact: true }).selectOption(b);
   await expect(
     page.getByRole('heading', { name: 'Segundo restaurante', exact: true }),
   ).toBeVisible();
+  await page.goto('/content/page');
+  await expect(
+    page.getByRole('heading', { name: 'Este espacio no está disponible.' }),
+  ).toBeVisible();
+});
+
+test('editor descarta borrador, retira y recupera sin borrar contenido publicado', async ({
+  page,
+}) => {
+  await mockedWorkspace(page);
+  await page.goto('/content/page/page1');
+  const title = page.getByRole('textbox', { name: /^Título\s*\*$/ });
+  await title.fill('Texto provisional');
+  await page.getByRole('button', { name: 'Guardar borrador' }).click();
+  await expect(page.locator('.badge')).toHaveText('Cambios pendientes de publicar');
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Descartar cambios' }).click();
+  await expect(title).toHaveValue('Experiencias');
+  await expect(page.locator('.badge')).toHaveText('Publicado');
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Retirar de publicación' }).click();
+  await expect(page.locator('.badge')).toHaveText('Retirado de publicación');
+  await page.reload();
+  await expect(page.locator('.badge')).toHaveText('Retirado de publicación');
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Volver a publicar' }).click();
+  await expect(page.locator('.badge')).toHaveText('Publicado');
+  await expect(title).toHaveValue('Experiencias');
+});
+
+test('documento nunca publicado permite descartar únicamente su borrador', async ({ page }) => {
+  await mockedWorkspace(page);
+  await page.goto('/content/page/new');
+  await page.getByRole('textbox', { name: /^Título\s*\*$/ }).fill('Página nueva de ensayo');
+  await page.getByRole('textbox', { name: /Slug/ }).fill('nueva-pagina');
+  await page.getByRole('textbox', { name: 'Título SEO *', exact: true }).fill('Página nueva');
+  await page
+    .getByRole('textbox', { name: /Descripción \(máximo/ })
+    .fill('Descripción de la página nueva');
+  await page.getByRole('button', { name: 'Guardar borrador' }).click();
+  await expect(page).toHaveURL(/new-generated$/);
+  await expect(page.locator('.badge')).toHaveText('Borrador');
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Descartar cambios' }).click();
+  await expect(page).toHaveURL(/\/content\/page$/);
+  await expect(
+    page.getByText('Todavía no hay contenido de este tipo.', { exact: false }),
+  ).toBeVisible();
+});
+
+test('avisa al navegar y cambiar restaurante; cancelar conserva campos, guardar elimina avisos', async ({
+  page,
+}) => {
+  await mockedWorkspace(page);
+  await page.goto('/content/page/page1');
+  const title = page.getByRole('textbox', { name: /^Título\s*\*$/ });
+  await title.fill('Cambios locales protegidos');
+  page.once('dialog', (d) => d.dismiss());
+  await page.getByRole('link', { name: 'Módulos', exact: false }).first().click();
+  await expect(page).toHaveURL(/page1$/);
+  await expect(title).toHaveValue('Cambios locales protegidos');
+  page.once('dialog', (d) => d.dismiss());
+  await page.getByLabel('Restaurante', { exact: true }).selectOption(b);
+  await expect(page.getByLabel('Restaurante', { exact: true })).toHaveValue(restaurantId);
+  await expect(title).toHaveValue('Cambios locales protegidos');
+  expect(
+    await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(true);
+  await page.getByRole('button', { name: 'Guardar borrador' }).click();
+  await expect(page.getByRole('status')).toContainText('Borrador guardado');
+  expect(
+    await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(false);
+  let dialogs = 0;
+  page.on('dialog', async (d) => {
+    dialogs++;
+    await d.dismiss();
+  });
+  await page.getByLabel('Restaurante', { exact: true }).selectOption(b);
+  await expect(page).toHaveURL(/\/$/);
+  expect(dialogs).toBe(0);
   await page.goto('/content/page');
   await expect(
     page.getByRole('heading', { name: 'Este espacio no está disponible.' }),

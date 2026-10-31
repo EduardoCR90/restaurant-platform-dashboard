@@ -64,6 +64,23 @@ function fakeStore() {
       let result: unknown = [];
       if (query.startsWith('*[_id in [$id,$draft]]'))
         result = [...docs.values()].filter((d) => d._id === params.id || d._id === params.draft);
+      else if (params.linkTypes)
+        result = [...docs.values()].filter(
+          (d) =>
+            (params.linkTypes as string[]).includes(d._type) &&
+            d._id !== params.id &&
+            !d._id.startsWith('drafts.') &&
+            !d._id.startsWith('versions.'),
+        );
+      else if (params.linkSlugs)
+        result = [...docs.values()].filter(
+          (d) =>
+            d._type === 'page' &&
+            d.status === 'hidden' &&
+            (params.linkSlugs as string[]).includes((d.slug as { current: string })?.current) &&
+            d._id !== params.id &&
+            !d._id.startsWith('drafts.'),
+        );
       else if (query.includes('slug.current'))
         result = [...docs.values()].filter(
           (d) =>
@@ -96,7 +113,7 @@ describe('Edición Sanity (API sustituida; nunca producción)', () => {
       _type: 'page',
     });
     expect(await executeContent({ restaurantId, action: 'list', kind: 'page' }, f.deps)).toEqual([
-      { id: 'p', title: 'Edición', draft: true, published: true },
+      { id: 'p', title: 'Edición', draft: true, published: true, withdrawn: false },
     ]);
     const r = await executeContent({ restaurantId, action: 'get', kind: 'page', id: 'p' }, f.deps);
     expect(r).toMatchObject({
@@ -386,3 +403,334 @@ it('SEO social y textos globales pasan por el mismo control de referencias y bor
   expect(f.docs.get('drafts.restaurant-settings')?.modules).toEqual(settings.modules);
   expect(f.docs.get('restaurant-settings')?.socialImage).toBeUndefined();
 });
+
+describe('Iteración 3: acciones editoriales sin borrado de publicaciones', () => {
+  const base = {
+    restaurantId,
+    kind: 'page',
+    id: 'p',
+    publishedRev: 'pub',
+    draftRev: 'draft',
+  } as const;
+  function publishedDraft() {
+    const f = fakeStore();
+    f.docs.set('p', { ...page, _id: 'p', _type: 'page', _rev: 'pub' });
+    f.docs.set('drafts.p', {
+      ...page,
+      title: 'Cambio pendiente',
+      _id: 'drafts.p',
+      _type: 'page',
+      _rev: 'draft',
+    });
+    return f;
+  }
+  function menu() {
+    const f = fakeStore();
+    f.docs.set('cat', {
+      _id: 'cat',
+      _type: 'category',
+      _rev: 'category',
+      name: 'Categoría',
+      order: 0,
+      visible: true,
+    });
+    f.docs.set('image-fixture', {
+      _id: 'image-fixture',
+      _type: 'sanity.imageAsset',
+      _rev: 'asset',
+    });
+    f.docs.set('dish', {
+      _id: 'dish',
+      _type: 'dish',
+      _rev: 'dish',
+      name: 'Plato',
+      description: 'Descripción',
+      price: 18,
+      category: { _type: 'reference', _ref: 'cat' },
+      allergens: [],
+      available: true,
+      featured: false,
+      order: 0,
+      image: {
+        _type: 'editorialImage',
+        asset: { _type: 'reference', _ref: 'image-fixture' },
+        alt: 'Imagen de ensayo',
+      },
+    });
+    return f;
+  }
+  it('descarta únicamente el draft y recupera publicación sin modificar su revisión', async () => {
+    const f = publishedDraft();
+    const result = (await executeContent({ ...base, action: 'discard' }, f.deps)) as {
+      discarded: boolean;
+      snapshot: { draftRev: null; document: { title: string } };
+    };
+    expect(result.discarded).toBe(true);
+    expect(result.snapshot.draftRev).toBeNull();
+    expect(result.snapshot.document.title).toBe(page.title);
+    expect(f.docs.get('p')?._rev).toBe('pub');
+    expect(f.docs.has('drafts.p')).toBe(false);
+    expect(f.mutate.mock.calls[0][0]).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ patch: expect.objectContaining({ id: 'p' }) }),
+      ]),
+    );
+  });
+  it('descarta un documento nunca publicado y devuelve snapshot null sin tocar otros documentos', async () => {
+    const f = publishedDraft();
+    f.docs.delete('p');
+    const result = await executeContent({ ...base, action: 'discard', publishedRev: null }, f.deps);
+    expect(result).toEqual({ discarded: true, id: 'p', kind: 'page', snapshot: null });
+    expect(f.docs.size).toBe(0);
+  });
+  it.each([{ publishedRev: 'stale' }, { draftRev: 'stale' }])(
+    'conflicto de descarte conserva el borrador %j',
+    async (change) => {
+      const f = publishedDraft();
+      await expect(
+        executeContent({ ...base, ...change, action: 'discard' }, f.deps),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(f.mutate).not.toHaveBeenCalled();
+      expect(f.docs.has('drafts.p')).toBe(true);
+    },
+  );
+  it('retira y recupera un plato conservando categoría, imagen y contenido', async () => {
+    const f = menu();
+    const before = structuredClone(f.docs.get('dish')!);
+    const result = (await executeContent(
+      {
+        restaurantId,
+        kind: 'dish',
+        id: 'dish',
+        action: 'withdraw',
+        publishedRev: 'dish',
+        draftRev: null,
+      },
+      f.deps,
+    )) as { withdrawn: boolean; publishedRev: string };
+    expect(result.withdrawn).toBe(true);
+    expect(f.docs.get('dish')).toMatchObject({
+      ...before,
+      _rev: expect.any(String),
+      visible: false,
+    });
+    await executeContent(
+      {
+        restaurantId,
+        kind: 'dish',
+        id: 'dish',
+        action: 'restore',
+        publishedRev: result.publishedRev,
+        draftRev: null,
+      },
+      f.deps,
+    );
+    expect(f.docs.get('dish')).toMatchObject({
+      visible: true,
+      category: before.category,
+      image: before.image,
+    });
+    expect(f.docs.get('image-fixture')?._rev).toBe('asset');
+    expect(f.docs.size).toBe(3);
+  });
+  it('categoría retirada conserva platos y referencias; la recuperación no modifica los platos', async () => {
+    const f = menu();
+    const dish = structuredClone(f.docs.get('dish'));
+    const result = (await executeContent(
+      {
+        restaurantId,
+        kind: 'category',
+        id: 'cat',
+        action: 'withdraw',
+        publishedRev: 'category',
+        draftRev: null,
+      },
+      f.deps,
+    )) as { publishedRev: string };
+    expect(f.docs.get('dish')).toEqual(dish);
+    expect(f.docs.get('cat')?.visible).toBe(false);
+    await executeContent(
+      {
+        restaurantId,
+        kind: 'category',
+        id: 'cat',
+        action: 'restore',
+        publishedRev: result.publishedRev,
+        draftRev: null,
+      },
+      f.deps,
+    );
+    expect(f.docs.get('dish')).toEqual(dish);
+    expect(f.docs.get('cat')?.visible).toBe(true);
+  });
+  it('retira y recupera páginas normales con status, sin borrar su ruta del CMS', async () => {
+    const f = publishedDraft();
+    f.docs.delete('drafts.p');
+    const result = (await executeContent(
+      { ...base, action: 'withdraw', draftRev: null },
+      f.deps,
+    )) as { publishedRev: string };
+    expect(f.docs.get('p')?.status).toBe('hidden');
+    await executeContent(
+      { ...base, action: 'restore', draftRev: null, publishedRev: result.publishedRev },
+      f.deps,
+    );
+    expect(f.docs.get('p')?.status).toBe('published');
+    expect(f.docs.get('p')?.slug).toEqual(page.slug);
+  });
+  it.each([
+    ['settings', 'restaurant-settings'],
+    ['story', 'restaurant-story'],
+    ['gallery', 'restaurant-gallery'],
+    ['page', 'p'],
+  ])('protege documento estructural %s', async (kind, id) => {
+    const f = fakeStore();
+    f.docs.set(id, { ...page, slug: { current: 'inicio' }, _id: id, _type: kind, _rev: 'pub' });
+    await expect(
+      executeContent(
+        { restaurantId, kind, id, action: 'withdraw', publishedRev: 'pub', draftRev: null },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it('no retira una publicación con draft pendiente ni descarta implícitamente ese draft', async () => {
+    const f = publishedDraft();
+    await expect(executeContent({ ...base, action: 'withdraw' }, f.deps)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(f.docs.get('drafts.p')?.title).toBe('Cambio pendiente');
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it('recuperar un retirado con borrador publica ese borrador y solo elimina el draft', async () => {
+    const f = publishedDraft();
+    f.docs.set('p', { ...f.docs.get('p')!, status: 'hidden' });
+    f.docs.set('drafts.p', { ...f.docs.get('drafts.p')!, status: 'hidden' });
+    const result = (await executeContent({ ...base, action: 'restore' }, f.deps)) as {
+      withdrawn: boolean;
+    };
+    expect(result.withdrawn).toBe(false);
+    expect(f.docs.get('p')?.title).toBe('Cambio pendiente');
+    expect(f.docs.get('p')?.status).toBe('published');
+    expect(f.docs.has('drafts.p')).toBe(false);
+  });
+  it.each(['withdraw', 'restore'])('revision stale bloquea %s sin mutaciones', async (action) => {
+    const f = publishedDraft();
+    await expect(
+      executeContent({ ...base, action, publishedRev: 'outdated' }, f.deps),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it('enlaces explícitos desde páginas o settings impiden retirar una ruta referenciada', async () => {
+    for (const source of [
+      {
+        _type: 'page',
+        blocks: [
+          { _type: 'richText', body: [{ markDefs: [{ href: '/experiencias/?x=1#programa' }] }] },
+        ],
+      },
+      { _type: 'settings', editorial: { footer: { link: { href: '/%65xperiencias/' } } } },
+      {
+        _type: 'settings',
+        editorial: {
+          footer: {
+            link: {
+              href: 'https://eduardocr90.github.io/restaurant-premium-sanity/experiencias/',
+            },
+          },
+        },
+      },
+    ]) {
+      const f = publishedDraft();
+      f.docs.delete('drafts.p');
+      f.docs.set('source', { ...source, _id: 'source', _rev: 'source' });
+      await expect(
+        executeContent({ ...base, action: 'withdraw', draftRev: null }, f.deps),
+      ).rejects.toMatchObject({ status: 422 });
+      expect(f.mutate).not.toHaveBeenCalled();
+    }
+  });
+  it('no publica enlaces a una página retirada aunque se hayan guardado antes como borrador', async () => {
+    const f = publishedDraft();
+    f.docs.set('hidden', {
+      ...page,
+      _id: 'hidden',
+      _type: 'page',
+      _rev: 'hidden',
+      slug: { current: 'retirada' },
+      status: 'hidden',
+    });
+    f.docs.set('drafts.p', {
+      ...f.docs.get('drafts.p')!,
+      blocks: [
+        { _type: 'hero', _key: 'hero', title: 'Título', cta: { label: 'Ver', href: '/retirada/' } },
+      ],
+    });
+    await expect(executeContent({ ...base, action: 'publish' }, f.deps)).rejects.toMatchObject({
+      status: 422,
+    });
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it.each(['discard', 'withdraw', 'restore'])(
+    'autorización y tenant preceden toda operación %s',
+    async (action) => {
+      const f = publishedDraft();
+      const authorize = vi.fn(async () => {
+        throw new HttpError(403, 'Sin membresía editorial');
+      });
+      await expect(
+        executeContent(
+          { ...base, action, projectId: 'hfa8zkyw', dataset: 'production' },
+          { authorize },
+        ),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(authorize).toHaveBeenCalledWith(restaurantId);
+      expect(f.mutate).not.toHaveBeenCalled();
+    },
+  );
+  it('los listados identifican retirados sin confundir drafts nuevos con publicados', async () => {
+    const f = publishedDraft();
+    f.docs.set('p', { ...f.docs.get('p')!, status: 'hidden' });
+    const list = (await executeContent({ restaurantId, action: 'list', kind: 'page' }, f.deps)) as {
+      withdrawn: boolean;
+      draft: boolean;
+      published: boolean;
+    }[];
+    expect(list[0]).toMatchObject({ withdrawn: true, draft: true, published: true });
+    f.docs.delete('p');
+    const drafts = (await executeContent(
+      { restaurantId, action: 'list', kind: 'page' },
+      f.deps,
+    )) as { withdrawn: boolean; published: boolean }[];
+    expect(drafts[0]).toMatchObject({ withdrawn: false, published: false });
+  });
+});
+
+it.each(['publish', 'restore'])(
+  'conserva las cuatro rutas lógicas al %s, incluso con borradores antiguos',
+  async (action) => {
+    const f = fakeStore();
+    f.docs.set('p', {
+      ...page,
+      slug: { current: 'carta' },
+      status: action === 'restore' ? 'hidden' : 'published',
+      _id: 'p',
+      _type: 'page',
+      _rev: 'pub',
+    });
+    f.docs.set('drafts.p', {
+      ...page,
+      slug: { current: 'otra-carta' },
+      _id: 'drafts.p',
+      _type: 'page',
+      _rev: 'draft',
+    });
+    await expect(
+      executeContent(
+        { restaurantId, action, kind: 'page', id: 'p', publishedRev: 'pub', draftRev: 'draft' },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(f.mutate).not.toHaveBeenCalled();
+  },
+);

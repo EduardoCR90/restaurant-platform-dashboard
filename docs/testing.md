@@ -15,7 +15,7 @@ Consulta la ejecución enlazada en la PR para resultados exactos de CI. No se ha
 - La colección editable se limita a 1000 documentos raw por tipo (publicado y borrador cuentan separados); supera ese límite con un error explícito, no truncando contenido silenciosamente. Incorporar paginación de servidor y búsqueda para catálogos mayores.
 - El editor conserva campos desconocidos existentes, pero solo permite editar el contrato salitre-v1. Un segundo contrato requiere adaptador y pruebas. No hay editor WYSIWYG de arrastrar sobre la web pública.
 - No hay merge automático ni comparación visual de revisiones; un conflicto exige recargar y revisar. La unicidad del slug se verifica antes de escribir; carreras entre creaciones simultáneas deben revisarse antes de publicar, Sanity no proporciona una restricción SQL UNIQUE de slugs.
-- Existe aviso al cerrar/refrescar con cambios locales; navegar internamente sin guardar aún puede descartarlos. Guardar siempre antes de cambiar de documento/restaurante.
+- La iteración 3 protege navegación interna, atrás/adelante, selector de restaurante y cierre/recarga. Las respuestas tardías y uploads no se trasladan a otro contexto. Consulta editorial-actions.md.
 - Invitaciones requieren SMTP/redirects/secretos; no se han enviado emails de prueba en remoto. MFA, observabilidad, límites operativos y auditoría editorial individual son configuración/siguientes mejoras de producción.
 - Los módulos de reservas, turnos, QR, eventos y analítica no tienen funcionalidad. Se muestran como pendientes y no se inventan datos.
 - El webhook y los despliegues de webs públicas pertenecen a su infraestructura existente. Esta fase no los configura ni despliega.
@@ -35,3 +35,7 @@ TypeScript de React y Edge, ESLint y Prettier: correctos. Vitest: 36 pruebas (13
 ## Iteración 2
 
 `tests/sanity-production-policy.test.ts` prueba la excepción exacta y resolución autorizada/fresca de integración. `scripts/salitre-production.test.mjs` prueba la configuración sin servicios remotos. La guía salitre-production.md distingue pruebas sustituidas, configuración remota y publicación editorial real.
+
+## Iteración 3
+
+Casos nuevos en editor.test.ts, unsaved-changes.test.tsx y Playwright cubren descarte persistido/nuevo, retirada reversible, recuperación, revisión, enlaces, estructuras y pérdida de cambios. No actúan sobre datos remotos.

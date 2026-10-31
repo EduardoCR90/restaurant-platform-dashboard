@@ -1,4 +1,6 @@
-import { useEffect, useState, useRef, type FormEvent } from 'react';
+import { useUnsavedChanges } from '../../app/UnsavedChanges';
+import { canWithdraw, editorialState, editorialLabels } from '../../../shared/editorial-state';
+import { useEffect, useState, useRef, useCallback, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { z } from 'zod';
 import {
@@ -115,9 +117,7 @@ export function ContentList() {
               <Link key={item.id} to={`/content/${kind.data}/${item.id}`}>
                 <span>
                   <strong>{item.title}</strong>
-                  <small>
-                    {item.draft ? 'Tiene borrador' : item.published ? 'Publicado' : 'Sin publicar'}
-                  </small>
+                  <small>{editorialLabels[editorialState(item)]}</small>
                 </span>
                 <span aria-hidden="true">↗</span>
               </Link>
@@ -133,13 +133,16 @@ export function ContentList() {
   );
 }
 export function ContentEditor() {
+  const guard = useUnsavedChanges();
+  const baseline = useRef<JsonRecord>({});
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      guard.setDirty(false);
     };
-  }, []);
+  }, [guard]);
   const { kind: raw, id } = useParams();
   const parsed = kindSchema.safeParse(raw);
   const kind = parsed.success ? parsed.data : null;
@@ -152,7 +155,14 @@ export function ContentEditor() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setLocalDirty] = useState(false);
+  const setDirty = useCallback(
+    (value: boolean) => {
+      setLocalDirty(value);
+      guard.setDirty(value);
+    },
+    [guard],
+  );
   const [version, setVersion] = useState(0);
   useEffect(() => {
     let active = true;
@@ -160,6 +170,9 @@ export function ContentEditor() {
     setError('');
     setDirty(false);
     setSnapshot(null);
+    setDocument({});
+    baseline.current = {};
+    setMessage('');
     if (!kind || !ctx.restaurant || !id || !ctx.contentAllowed) {
       setLoading(false);
       return;
@@ -179,7 +192,9 @@ export function ContentEditor() {
           dish: dishes.filter((d) => d.published),
         });
         setSnapshot(doc);
-        setDocument(doc ? normalizeDocument(kind!, doc.document) : initialDocument(kind!));
+        const loaded = doc ? normalizeDocument(kind!, doc.document) : initialDocument(kind!);
+        baseline.current = loaded;
+        setDocument(loaded);
       }
     }
     void load()
@@ -192,26 +207,17 @@ export function ContentEditor() {
     return () => {
       active = false;
     };
-  }, [kind, id, ctx.restaurant, ctx.contentAllowed, version]);
-  useEffect(() => {
-    function warn(event: BeforeUnloadEvent) {
-      if (dirty) {
-        event.preventDefault();
-        event.returnValue = '';
-      }
-    }
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [kind, id, ctx.restaurant, ctx.contentAllowed, version, setDirty]);
   if (!kind || !id) return <p>Documento no válido.</p>;
   function change(next: JsonRecord) {
     setDocument(next);
-    setDirty(true);
+    setDirty(JSON.stringify(next) !== JSON.stringify(baseline.current));
     setMessage('');
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!kind || !ctx.restaurant) return;
+    if (!kind || !ctx.restaurant || (id !== 'new' && !snapshot)) return;
+    const finish = guard.beginOperation();
     setBusy(true);
     setError('');
     setMessage('');
@@ -232,11 +238,14 @@ export function ContentEditor() {
       );
       if (!mounted.current) return;
       setSnapshot(next);
-      setDocument(next.document);
+      baseline.current = normalizeDocument(kind, next.document);
+      setDocument(baseline.current);
       setDirty(false);
       setMessage('Borrador guardado. Todavía no se ha publicado.');
+      finish();
       if (id === 'new') navigate(`/content/${kind}/${next.id}`, { replace: true });
     } catch (e) {
+      if (!mounted.current) return;
       setError(
         e instanceof z.ZodError
           ? e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' · ')
@@ -245,7 +254,8 @@ export function ContentEditor() {
             : 'No se pudo guardar',
       );
     } finally {
-      setBusy(false);
+      finish();
+      if (mounted.current) setBusy(false);
     }
   }
   async function publish() {
@@ -256,8 +266,10 @@ export function ContentEditor() {
       )
     )
       return;
+    const finish = guard.beginOperation();
     setBusy(true);
     setError('');
+    setMessage('');
     try {
       const next = await contentApi.document({
         restaurantId: ctx.restaurant.id,
@@ -269,12 +281,79 @@ export function ContentEditor() {
       });
       if (!mounted.current) return;
       setSnapshot(next);
-      setDocument(next.document);
+      baseline.current = normalizeDocument(kind, next.document);
+      setDocument(baseline.current);
+      setDirty(false);
       setMessage('Contenido publicado en Sanity. La web cambiará al finalizar su reconstrucción.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo publicar');
+      if (mounted.current) setError(e instanceof Error ? e.message : 'No se pudo publicar');
     } finally {
-      setBusy(false);
+      finish();
+      if (mounted.current) setBusy(false);
+    }
+  }
+  async function editorialAction(action: 'discard' | 'withdraw' | 'restore') {
+    if (!ctx.restaurant || !kind || !id) return;
+    const text =
+      action === 'discard'
+        ? snapshot?.draftRev
+          ? snapshot.publishedRev
+            ? '¿Descartar el borrador y los cambios locales? Se conservará la versión publicada.'
+            : '¿Descartar este documento nunca publicado? Se eliminará únicamente su borrador y los cambios locales.'
+          : '¿Descartar los cambios locales sin guardar?'
+        : action === 'withdraw'
+          ? '¿Retirar de publicación? Se conservarán todos los datos. La web cambiará tras reconstruirse.' +
+            (kind === 'category'
+              ? ' Sus platos también dejarán de mostrarse hasta recuperar la categoría.'
+              : '')
+          : '¿Volver a publicar? Se incorporará el borrador guardado, si existe. La web cambiará al finalizar su reconstrucción.';
+    if (!window.confirm(text)) return;
+    if (action === 'discard' && !snapshot?.draftRev) {
+      setDocument(baseline.current);
+      setDirty(false);
+      setMessage('Cambios locales descartados.');
+      return;
+    }
+    if (!snapshot) return;
+    const finish = guard.beginOperation();
+    setBusy(true);
+    setError('');
+    setMessage('');
+    const request = {
+      restaurantId: ctx.restaurant.id,
+      kind,
+      id: snapshot.id,
+      draftRev: snapshot.draftRev,
+      publishedRev: snapshot.publishedRev,
+    };
+    try {
+      const next =
+        action === 'discard'
+          ? (await contentApi.discard({ ...request, action })).snapshot
+          : await contentApi.document({ ...request, action });
+      if (!mounted.current) return;
+      setDirty(false);
+      if (!next) {
+        finish();
+        navigate(`/content/${kind}`, { replace: true });
+        return;
+      }
+      setSnapshot(next);
+      baseline.current = normalizeDocument(kind, next.document);
+      setDocument(baseline.current);
+      setMessage(
+        action === 'discard'
+          ? 'Borrador descartado. Se ha recuperado la versión anterior.'
+          : action === 'withdraw'
+            ? 'Contenido retirado en Sanity. La web lo ocultará tras su reconstrucción.'
+            : 'Contenido publicado de nuevo en Sanity. La web cambiará tras su reconstrucción.',
+      );
+    } catch (e) {
+      if (mounted.current)
+        setError(e instanceof Error ? e.message : 'No se pudo completar la operación');
+    } finally {
+      finish();
+      if (mounted.current) setBusy(false);
     }
   }
   return (
@@ -288,7 +367,15 @@ export function ContentEditor() {
             : String(document.title || document.name || kindLabels[kind])}
         </h1>
         <span className="badge">
-          {snapshot?.draftRev ? 'Borrador' : snapshot?.publishedRev ? 'Publicado' : 'Nuevo'}
+          {snapshot
+            ? editorialLabels[
+                editorialState({
+                  draft: !!snapshot.draftRev,
+                  published: !!snapshot.publishedRev,
+                  withdrawn: snapshot.withdrawn,
+                })
+              ]
+            : 'Nuevo · sin guardar'}
         </span>
       </div>
       {loading ? (
@@ -306,8 +393,24 @@ export function ContentEditor() {
             >
               Recargar documento
             </button>
-            <span className="muted">{dirty ? 'Cambios sin guardar' : 'Sin cambios locales'}</span>
+            <span className="muted">
+              {dirty
+                ? 'Cambios locales sin guardar'
+                : snapshot?.draftRev
+                  ? 'Borrador guardado en Sanity'
+                  : 'Sin cambios locales'}
+            </span>
           </div>
+          {snapshot?.withdrawn && snapshot.draftRev && (
+            <p>Hay cambios guardados pendientes. Volver a publicar incorporará ese borrador.</p>
+          )}
+          {!!snapshot?.publishedRev && !!snapshot.draftRev && !snapshot.withdrawn && (
+            <p>Publica o descarta el borrador pendiente antes de retirar el contenido.</p>
+          )}
+          <p className="muted">
+            Los estados se refieren a Sanity. La web se actualiza al finalizar su reconstrucción.
+            Retirar una categoría oculta también sus platos.
+          </p>
           {(!error || Object.keys(document).length > 0) && (
             <form className="editor-form" onSubmit={save}>
               {kind === 'page' && (
@@ -333,16 +436,46 @@ export function ContentEditor() {
                 )}
               </fieldset>
               <div className="save-bar">
-                <button className="primary" disabled={busy}>
+                <button className="primary" disabled={busy || !dirty}>
                   Guardar borrador
                 </button>
-                <button
-                  type="button"
-                  disabled={busy || dirty || !snapshot?.draftRev}
-                  onClick={() => void publish()}
-                >
-                  Publicar borrador ↗
-                </button>
+                {!snapshot?.withdrawn && (
+                  <button
+                    type="button"
+                    disabled={busy || dirty || !snapshot?.draftRev}
+                    onClick={() => void publish()}
+                  >
+                    Publicar cambios ↗
+                  </button>
+                )}
+                {(dirty || snapshot?.draftRev) && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void editorialAction('discard')}
+                  >
+                    Descartar cambios
+                  </button>
+                )}
+                {snapshot?.publishedRev &&
+                  canWithdraw(kind, document) &&
+                  (snapshot.withdrawn ? (
+                    <button
+                      type="button"
+                      disabled={busy || dirty}
+                      onClick={() => void editorialAction('restore')}
+                    >
+                      Volver a publicar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy || dirty || !!snapshot.draftRev}
+                      onClick={() => void editorialAction('withdraw')}
+                    >
+                      Retirar de publicación
+                    </button>
+                  ))}
                 <small>No se borra contenido publicado.</small>
               </div>
             </form>

@@ -1,7 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { roles, moduleKey } from '../../shared/access';
-import { snapshotSchema, contentItemSchema, type ContentRequest } from '../../shared/content';
+import {
+  snapshotSchema,
+  contentItemSchema,
+  discardResultSchema,
+  type ContentRequest,
+} from '../../shared/content';
 const env = z.object({ url: z.url(), key: z.string().min(1) }).safeParse({
   url: import.meta.env.VITE_SUPABASE_URL,
   key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
@@ -152,8 +157,11 @@ export const contentApi = {
   async list(body: Extract<ContentRequest, { action: 'list' }>) {
     return z.array(contentItemSchema).parse(await invoke('content', body));
   },
-  async document(body: Exclude<ContentRequest, { action: 'list' | 'upload' }>) {
+  async document(body: Exclude<ContentRequest, { action: 'list' | 'upload' | 'discard' }>) {
     return snapshotSchema.parse(await invoke('content', body));
+  },
+  async discard(body: Extract<ContentRequest, { action: 'discard' }>) {
+    return discardResultSchema.parse(await invoke('content', body));
   },
   async upload(restaurantId: string, file: File) {
     if (
