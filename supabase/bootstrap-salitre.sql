@@ -9,7 +9,7 @@ begin
  insert into public.restaurants(name,slug,status) values('Salitre','salitre','active') returning id into r;
  insert into public.restaurant_module_entitlements(restaurant_id,module_key,granted) values(r,'content_management',true);
  insert into public.restaurant_modules(restaurant_id,module_key,enabled) values(r,'content_management',true);
- insert into public.restaurant_integrations(restaurant_id,provider,external_project_id,external_dataset) values(r,'sanity','hfa8zkyw','production');
+ insert into public.restaurant_integrations(restaurant_id,provider,external_project_id,external_dataset) values(r,'sanity','hfa8zkyw','staging');
 end;$$;
 commit;
 -- Asignar primer administrador SOLO tras crear/invitar un usuario real:

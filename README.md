@@ -2,7 +2,7 @@
 
 Dashboard privado React + TypeScript + Vite para varios restaurantes, con Supabase Auth/PostgreSQL/RLS y edición de Sanity mediante Edge Functions. Aplicación separada de Astro y Studio; conserva los diez bloques de Salitre.
 
-**Estado real:** implementación y pruebas locales; necesita configurar migraciones, usuarios, secretos y funciones en Supabase y desplegar Vercel para validar el recorrido remoto completo. Esta entrega no migra producción, no modifica documentos reales de Sanity ni configura webhooks. No hay autenticación simulada en la aplicación. Los tests usan servicios sustituidos y PostgreSQL aislado.
+**Estado real:** implementación y pruebas locales; necesita configurar migraciones, usuarios, secretos y funciones en Supabase y desplegar Vercel para validar el recorrido remoto completo. Esta entrega no migra producción, no modifica documentos reales de Sanity ni configura webhooks. El backend solo permite escrituras Sanity en `staging` durante las pruebas. Las variables automáticas de Supabase tienen fallback público compatible y el override opcional `APP_SUPABASE_PUBLISHABLE_KEY`; no crees secretos personalizados con prefijo `SUPABASE_`. No hay autenticación simulada en la aplicación. Los tests usan servicios sustituidos y PostgreSQL aislado.
 
 ## Arranque
 

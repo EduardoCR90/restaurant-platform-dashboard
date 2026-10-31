@@ -30,7 +30,7 @@ Un usuario puede actualizar su display_name, un owner/manager el name de su rest
 ## Editor y almacenamiento
 
 - Verificación Auth en cada petición Edge y autorización PostgreSQL fresca, con sesión del usuario.
-- Integración exclusiva por proyecto/dataset; el token se resuelve por integration.id en secretos backend.
+- Integración exclusiva por proyecto/dataset; el token se resuelve por integration.id en secretos backend. En esta fase toda escritura HTTP y subida de assets requiere exactamente `staging`; cualquier otro dataset se rechaza antes de hacer la petición, incluso con un token que pueda escribir en production. No hay flag de entorno para eludirlo.
 - Tipos/operaciones permitidos cerrados. No acepta GROQ, endpoints o mutaciones arbitrarias del cliente.
 - Validación Zod y de referencias contra el dataset autorizado. No referencias a borradores ni a documentos de otro tipo.
 - Borradores primero. Guardar no modifica la publicación. Publicar comprueba dos revisiones y usa una transacción; conflicto 409 exige recargar/revisar, sin reintentos de escritura.
@@ -43,3 +43,5 @@ Un usuario puede actualizar su display_name, un owner/manager el name de su rest
 Los tests de RLS ejecutan el SQL real en PGlite con roles PostgreSQL de ensayo y auth.uid() equivalente. Cubren accesos cruzados, anónimos, staff, elevación, contratación, suspensiones y RPC administrativa. No sustituyen una prueba final del gateway/API real de Supabase.
 
 Configura rate limits, MFA para administradores, SMTP, rotación de secretos, permisos mínimos Sanity, backups y monitorización con tu política operativa antes de producción. Los secretos nunca se leen para diagnosticar su valor. No se han configurado sistemas externos de auditoría o alertas en esta fase. La auditoría administrativa no equivale todavía a una auditoría editorial por usuario en Sanity: el token de servicio aparece como actor en su historial.
+
+Las claves del runtime se resuelven en `_shared/environment.ts`. El cliente de usuario solo admite APP_SUPABASE_PUBLISHABLE_KEY, el default publishable automático o anon heredada; nunca una clave privilegiada. Las claves automáticas secret/service_role se resuelven solo tras la comprobación de administrador. Los tests usan valores ficticios y no consultan secretos ni escriben en Sanity.

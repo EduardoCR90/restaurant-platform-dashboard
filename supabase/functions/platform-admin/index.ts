@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { adminRequest } from '../../../shared/access.ts';
 import { HttpError } from '../../../shared/editor-service.ts';
 import { authenticate } from '../_shared/auth.ts';
+import { adminSupabaseConfiguration } from '../_shared/environment.ts';
 import { handler, limitedJson } from '../_shared/http.ts';
 Deno.serve(
   handler(async (request) => {
@@ -10,9 +11,8 @@ Deno.serve(
     if (authError || allowed !== true)
       throw new HttpError(403, 'Requiere administrador global activo');
     const input = adminRequest.parse(await limitedJson(request));
-    const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!secret) throw new HttpError(503, 'Administración no configurada');
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, secret, {
+    const { url, key } = adminSupabaseConfiguration((name) => Deno.env.get(name));
+    const admin = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     if (input.operation === 'invite') {

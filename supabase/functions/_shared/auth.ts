@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { HttpError } from '../../../shared/editor-service.ts';
+import { publicSupabaseConfiguration } from './environment.ts';
 export async function authenticate(request: Request) {
   const authorization = request.headers.get('Authorization');
   if (!authorization?.startsWith('Bearer '))
     throw new HttpError(401, 'Inicia sesión para continuar');
-  const url = Deno.env.get('SUPABASE_URL')!;
-  const key = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY');
-  if (!key) throw new HttpError(503, 'Configura la clave pública del backend');
+  const { url, key } = publicSupabaseConfiguration((name) => Deno.env.get(name));
   const client = createClient(url, key, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },

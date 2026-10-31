@@ -1,6 +1,6 @@
 # Contrato editorial e integración con Sanity
 
-Fuente inspeccionada: EduardoCR90/studio-salitre-restaurant, main `f9cd750417306fbc6dd10de3fb29688856d2d915`, archivos schemaTypes/index.ts, blocks.ts y restaurant.ts. Frontend Astro de referencia: main `adc94019e989613895cdc7bb967f003ab23954cd`. No se ha modificado ninguno de esos repositorios o sus datos.
+Fuente inspeccionada: EduardoCR90/studio-salitre-restaurant, main `f9cd750417306fbc6dd10de3fb29688856d2d915`, archivos schemaTypes/index.ts, blocks.ts y restaurant.ts. Frontend Astro de referencia: main `adc94019e989613895cdc7bb967f003ab23954cd`. No se ha modificado ninguno de esos repositorios o sus datos. En esta fase el backend solo permite escrituras en el dataset `staging`; el token no puede usarse desde este adaptador para mutaciones ni subidas en `production`.
 
 ## Modelo reutilizado
 
