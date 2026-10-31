@@ -35,8 +35,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate Edge imports and types
         run: npm run check:edge
-      - name: Verify runtime keys and staging write protection
-        run: npx vitest run tests/edge-environment.test.ts tests/sanity-write-safety.test.ts
+      - name: Verify runtime keys and scoped Sanity write protection
+        run: npx vitest run tests/edge-environment.test.ts tests/sanity-write-safety.test.ts tests/sanity-production-policy.test.ts
       - name: Check CLI source packages against localhost only
         run: node scripts/check-edge-package.mjs
       - name: Deploy content only
@@ -54,7 +54,7 @@ jobs:
           cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
           Se completaron los comandos para **content** y **platform-admin** en `wanrzgumoamryuybmopa`.
           CLI: `2.122.0`; `verify_jwt=false`; import map: `supabase/functions/deno.json`.
-          Cada función verifica la sesión con `auth.getUser`. Las escrituras Sanity siguen limitadas a `staging`.
+          Cada función verifica la sesión con `auth.getUser`. Las escrituras Sanity admiten `staging` y únicamente la tupla de Salitre configurada explícitamente para `hfa8zkyw/production`.
           No se ejecutaron migraciones, bootstrap ni despliegues de webs.
           Revisa ambas funciones en Supabase y valida el acceso desde el dashboard; el éxito de la CLI no acredita por sí solo el recorrido remoto completo.
           SUMMARY

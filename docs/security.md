@@ -30,7 +30,7 @@ Un usuario puede actualizar su display_name, un owner/manager el name de su rest
 ## Editor y almacenamiento
 
 - Verificación Auth en cada petición Edge y autorización PostgreSQL fresca, con sesión del usuario.
-- Integración exclusiva por proyecto/dataset; el token se resuelve por integration.id en secretos backend. En esta fase toda escritura HTTP y subida de assets requiere exactamente `staging`; cualquier otro dataset se rechaza antes de hacer la petición, incluso con un token que pueda escribir en production. No hay flag de entorno para eludirlo.
+- Integración exclusiva por proyecto/dataset; el token se resuelve por integration.id en secretos backend. Toda escritura HTTP y subida de assets exige staging o la tupla exacta de Salitre (restaurante, integración, hfa8zkyw, production) configurada en servidor. Véase [la política de iteración 2](salitre-production.md). No hay booleano global ni bypass de administrador.
 - Tipos/operaciones permitidos cerrados. No acepta GROQ, endpoints o mutaciones arbitrarias del cliente.
 - Validación Zod y de referencias contra el dataset autorizado. No referencias a borradores ni a documentos de otro tipo.
 - Borradores primero. Guardar no modifica la publicación. Publicar comprueba dos revisiones y usa una transacción; conflicto 409 exige recargar/revisar, sin reintentos de escritura.
