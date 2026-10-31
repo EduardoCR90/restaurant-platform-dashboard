@@ -23,12 +23,12 @@ La barrera común del adaptador HTTP protege borradores, publicación y assets. 
 
 Workflow nuevo: **Configure Salitre production (manual)**, solo workflow_dispatch desde main, sin re-runs. Comparte concurrencia con el despliegue Edge. Usa únicamente el secreto existente `SUPABASE_ACCESS_TOKEN`, entregado al paso operativo después de tests sintéticos. El runner solo necesita Node y los scripts builtin, no instala dependencias con credenciales presentes.
 
-El token de gestión debe poder consultar la base de wanrzgumoamryuybmopa y leer metadatos/escribir secretos Edge. Se usa la [Management API de Supabase](https://supabase.com/docs/reference/api/introduction), nunca se recuperan valores de secretos existentes. La cuenta operadora debe tener acceso a este proyecto; el secreto no se copia a Codex, logs ni Vercel.
+El token de gestión debe poder consultar la base de wanrzgumoamryuybmopa y leer metadatos/escribir secretos Edge. Se usa la [Management API de Supabase](https://supabase.com/docs/reference/api/introduction), no se inspeccionan ni registran valores de credenciales existentes. La cuenta operadora debe tener acceso a este proyecto; el secreto no se copia a Codex, logs ni Vercel.
 
 1. Integrar la PR con CI aprobada.
-2. Ejecutar el workflow con operation=inspect. Solo realiza SELECT sobre la integración de slug salitre. Comprueba que hay exactamente una, proyecto hfa8zkyw, contrato salitre-v1, estado activo y módulo concedido/activo. Muestra solo los UUID no secretos, proyecto y dataset actual.
+2. Ejecutar el workflow con operation=inspect. Solo realiza SELECT sobre la integración de slug salitre. Comprueba que hay exactamente una, proyecto hfa8zkyw, contrato salitre-v1, estado activo y módulo concedido/activo. Muestra UUID no secretos, proyecto, dataset actual y booleanos de presencia/coincidencia de política. No muestra huellas, valores ni respuestas completas.
 3. Ejecutar operation=apply con los UUID obtenidos en expected_restaurant_id y expected_integration_id y confirmation=`HABILITAR SALITRE PRODUCTION`. La autorización de esta operación ha sido concedida para esta iteración; no concede autorización a destinos distintos.
-4. El script vuelve a inspeccionar, exige SANITY_TOKENS existente y configura únicamente el secreto nuevo SALITRE_PRODUCTION_WRITE_TARGET. Si ya existe uno con digest diferente, se detiene **sin sobrescribirlo**. Verifica el digest sin leer el valor.
+4. El script vuelve a inspeccionar, exige SANITY_TOKENS existente y configura únicamente el secreto nuevo SALITRE_PRODUCTION_WRITE_TARGET. Si ya existe uno que no puede verificarse contra la tupla esperada, se detiene **sin sobrescribirlo**. Admite los formatos de huella de metadatos en digest/value; solo contrasta la política de UUIDs y nunca inspecciona el valor de SANITY_TOKENS.
 5. Actualiza solo external_dataset de la integración existente, mediante una operación SQL transaccional guardada por ambos UUID, slug, proyecto, dataset anterior y contrato. No recrea el restaurante/integración ni repite bootstrap. Si ya está aplicado, solo verifica. No toca SANITY_TOKENS, otros secretos, membresías, módulos o filas de otros restaurantes.
 6. Ejecutar **Deploy Supabase Edge Functions** desde main. Usa la CLI fijada y despliega content/platform-admin con verify_jwt=false; ambas verifican Auth.getUser. No ejecuta migraciones ni bootstrap. El adaptador antiguo deniega production hasta que esté desplegado el nuevo.
 
@@ -54,3 +54,7 @@ Después ejecutar el workflow de despliegue manual existente. Las variables púb
 - El webhook/Pages existente no se configura de nuevo. Si falla el despliegue web, el mensaje del dashboard sigue distinguiendo publicación CMS de reconstrucción pendiente; el seguimiento completo de despliegues pertenece a la iteración posterior.
 
 La excepción no equivale a una comprobación de que el token Sanity existente tenga permisos correctos. Nunca afirmar una publicación real por el éxito de un test mock, de un cambio de configuración o del despliegue Edge.
+
+## Diagnóstico de configuración
+
+inspect comprueba también la presencia de SANITY_TOKENS y si la política existente coincide, sin escribir. Los fallos indican una fase estática (inspección, autorización, presencia de token, creación/verificación de política o actualización/verificación de integración). Antes de repetir apply tras un fallo, ejecutar inspect y comprobar los resultados. No sobrescribir una política diferente ni reintentar escrituras automáticamente. Las huellas de metadatos solo sirven para evitar sobrescribir configuración; la autorización real sigue siendo la comparación exacta de los cuatro campos en Edge.
