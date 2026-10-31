@@ -31,3 +31,7 @@ TypeScript de React y Edge, ESLint y Prettier: correctos. Vitest: 36 pruebas (13
 ## Restricciones de despliegue de Edge
 
 `edge-environment.test.ts` comprueba selección de claves automáticas modernas/heredadas, override APP_, errores de configuración sanitizados y rechazo de claves privilegiadas en el cliente de usuario. `sanity-write-safety.test.ts` intercepta HTTP: prueba bloqueo de todas las mutaciones y uploads fuera de staging, lectura sin permiso de escritura, rechazo de intentos de elegir el destino desde el cliente y aislamiento entre proyectos. Ninguna de estas pruebas usa secretos o escribe contenidos reales.
+
+## Iteración 2
+
+`tests/sanity-production-policy.test.ts` prueba la excepción exacta y resolución autorizada/fresca de integración. `scripts/salitre-production.test.mjs` prueba la configuración sin servicios remotos. La guía salitre-production.md distingue pruebas sustituidas, configuración remota y publicación editorial real.

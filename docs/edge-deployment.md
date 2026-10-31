@@ -47,3 +47,7 @@ Esta prueba verifica **el paquete de fuentes y sus metadatos**. Deno comprueba l
 6. Revisa los logs de ambas funciones sin registrar cabeceras o tokens. Comprueba CORS si el navegador falla antes de recibir una respuesta. No intentes una escritura real en production: los tests de seguridad verifican el bloqueo con HTTP sustituido.
 
 Si falla un paso, revisa cuál de las dos funciones llegó a actualizarse antes de repetir manualmente. Un fallo de auth/token puede indicar permisos del PAT (edge_functions_write; los requisitos exactos se consultan en `supabase functions deploy --help` de la versión fijada). No añadas permisos SQL ni ejecutes migraciones para resolver un error de despliegue.
+
+## Política actual de Sanity
+
+La iteración 2 añade la excepción de Salitre configurada por tupla exacta. [Configurar antes de activar production](salitre-production.md); las restricciones anteriores de staging describen la entrega inicial. No eliminar ni sustituir la integración existente.

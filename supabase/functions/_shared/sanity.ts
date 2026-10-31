@@ -4,20 +4,26 @@ import {
   type SanityDocument,
 } from '../../../shared/editor-service.ts';
 import type { JsonRecord } from '../../../shared/content.ts';
-// Restricción de la fase de pruebas: no configurable desde env, cliente o integración.
-export function assertSanityWriteDataset(dataset: string): void {
-  if (dataset !== 'staging')
-    throw new HttpError(
-      403,
-      'Las escrituras de Sanity solo están permitidas en staging durante esta fase',
-    );
-}
+import { assertSanityWriteTarget } from './sanity-write-policy.ts';
 
-export function sanityStore(projectId: string, dataset: string, token: string): ContentStore {
+export function sanityStore(
+  projectId: string,
+  dataset: string,
+  token: string,
+  authorization?: { restaurantId: string; integrationId: string; productionTarget?: string },
+): ContentStore {
+  const target = Object.freeze({
+    projectId,
+    dataset,
+    restaurantId: authorization?.restaurantId || '',
+    integrationId: authorization?.integrationId || '',
+  });
+  const productionTarget = authorization?.productionTarget;
   const base = `https://${projectId}.api.sanity.io/v2025-02-19`;
   async function call(path: string, init: RequestInit = {}) {
     // Límite HTTP común para mutaciones (incluido borradores/publicación) y assets.
-    if ((init.method || 'GET').toUpperCase() !== 'GET') assertSanityWriteDataset(dataset);
+    if ((init.method || 'GET').toUpperCase() !== 'GET')
+      assertSanityWriteTarget(target, productionTarget);
     const response = await fetch(base + path, {
       ...init,
       headers: { Authorization: `Bearer ${token}`, ...init.headers },

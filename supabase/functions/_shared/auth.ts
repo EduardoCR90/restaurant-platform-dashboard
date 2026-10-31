@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { z } from 'zod';
 import { HttpError } from '../../../shared/editor-service.ts';
 import { publicSupabaseConfiguration } from './environment.ts';
 export async function authenticate(request: Request) {
@@ -16,9 +15,4 @@ export async function authenticate(request: Request) {
   if (error || !data.user) throw new HttpError(401, 'Sesión no válida o caducada');
   return { client, user: data.user };
 }
-export const integrationSchema = z.object({
-  id: z.uuid(),
-  projectId: z.string().regex(/^[a-z0-9]{1,32}$/),
-  dataset: z.string().regex(/^[a-z0-9_-]{1,64}$/),
-  schema: z.literal('salitre-v1'),
-});
+export { integrationSchema } from './content-authorization.ts';

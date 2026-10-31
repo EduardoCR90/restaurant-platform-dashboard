@@ -24,6 +24,7 @@ jobs:
       - run: npm run typecheck
       - run: npx tsc -p tsconfig.edge.json
       - run: npm test
+      - run: node --test scripts/salitre-production.test.mjs
       - run: npm run build
         env:
           VITE_SUPABASE_URL: https://wanrzgumoamryuybmopa.supabase.co

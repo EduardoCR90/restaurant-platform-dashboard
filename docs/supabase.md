@@ -71,12 +71,6 @@ La UI Administration existe solo para administrador global; el backend verifica 
 
 Las invitaciones registran el estado, envían email mediante Supabase Auth y asignan la membresía con una RPC privilegiada. Si el email o la membresía falla, no se reintenta ciegamente; se registra failed y un administrador revisa el resultado. SMTP, redirect y permisos requieren configuración. No se ha enviado ninguna invitación real.
 
-## Protección de staging antes de desplegar
+## Política de escrituras actual — iteración 2
 
-El adaptador HTTP de Sanity comprueba el dataset resuelto desde la integración **antes de emitir cualquier petición de escritura**. En esta fase solo se permite exactamente `staging`, en todos los restaurantes/proyectos autorizados. Crear/guardar borradores, publicar, eliminar el borrador al publicar y subir assets a `production` o a cualquier otro dataset devuelven 403, sin llamada de escritura a Sanity. Se rechazan también variaciones de mayúsculas y rutas codificadas; no se siguen redirecciones HTTP.
-
-No hay variable de entorno, campo de cliente ni configuración comercial que habilite production. Ampliar esta restricción exigirá un cambio de código revisado y autorizado. La lectura del dataset resuelto sigue funcionando: leer producción no da permiso para escribirla. Los controles de JWT, RLS, módulo e integración exclusiva permanecen vigentes.
-
-El token actual puede tener alcance de proyecto; la barrera limita su uso desde estas Edge Functions, no cambia los permisos de ese token en otras herramientas. Conserva `SANITY_TOKENS` en los secretos backend.
-
-Para continuar: revisa la PR #1 y sus tests, confirma que la integración de Salitre conserva dataset staging, configura los nombres personalizados indicados, y solo tras autorizarlo publica las funciones actualizadas. No se necesita una migración para estos ajustes. Prueba login/lectura/borrador/publicación **en staging** con un usuario autorizado. Comprueba el bloqueo de production con los tests HTTP sustituidos; no hace falta intentar una escritura real en production para validarlo. Esta entrega no ejecuta despliegues, migraciones, bootstrap ni cambios de contenido remoto.
+Staging mantiene su funcionamiento. La única excepción es Salitre mediante SALITRE_PRODUCTION_WRITE_TARGET y contraste con Supabase. [Guía completa de configuración y validación](salitre-production.md). No usar bootstrap para cambiar la integración existente ni un flag global para production. Los apartados de preparación inicial anteriores conservan contexto histórico; la autorización actual permite configurar Salitre como restaurante de pruebas en production siguiendo esa guía.

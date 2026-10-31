@@ -17,11 +17,14 @@ const expected = {
     'supabase/functions/_shared/environment.ts',
     'supabase/functions/_shared/http.ts',
     'supabase/functions/_shared/sanity.ts',
+    'supabase/functions/_shared/sanity-write-policy.ts',
+    'supabase/functions/_shared/content-authorization.ts',
     'shared/editor-service.ts',
     'shared/content.ts',
     'shared/editorial.ts',
   ],
   'platform-admin': [
+    'supabase/functions/_shared/content-authorization.ts',
     'supabase/functions/platform-admin/index.ts',
     'supabase/functions/_shared/auth.ts',
     'supabase/functions/_shared/environment.ts',
@@ -119,7 +122,9 @@ const server = createServer(async (request, response) => {
     assert.equal(imports['@supabase/supabase-js'], 'npm:@supabase/supabase-js@2.118.0');
     if (slug === 'content')
       assert.ok(
-        files.get('supabase/functions/_shared/sanity.ts').includes("dataset !== 'staging'"),
+        files
+          .get('supabase/functions/_shared/sanity.ts')
+          .includes('assertSanityWriteTarget(target, productionTarget)'),
       );
     uploads.set(slug, { metadata, files: [...files.keys()] });
     // No se almacena ni ejecuta el código recibido; solo se valida el multipart.
