@@ -16,5 +16,5 @@ export default ts.config(
       'react-hooks/immutability': 'off',
     },
   },
-  { files: ['**/*.js'], languageOptions: { globals: globals.node } },
+  { files: ['**/*.{js,mjs}'], languageOptions: { globals: globals.node } },
 );

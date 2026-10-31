@@ -9,5 +9,7 @@ additional_redirect_urls = ["http://localhost:5173/auth/update-password"]
 enable_signup = false
 [functions.content]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.platform-admin]
 verify_jwt = false
+import_map = "./functions/deno.json"
