@@ -40,7 +40,7 @@ Todos conservan _type y _key, presentación y alineación donde aplica. Las arra
 4. Publish exige borrador guardado y sin cambios locales. Valida campos, slug y referencias; una transacción comprueba revisión del borrador y de la versión publicada, escribe la publicación y elimina únicamente su borrador.
 5. Si otro editor cambia una revisión, devuelve 409. No se reintenta ni se sustituye automáticamente. Recarga, compara y decide. Si la publicación cambia durante un guardado, se avisa y no se autoriza publicarla con una revisión desactualizada.
 
-No hay botones para borrar permanentemente páginas/platos/categorías publicados. Oculta con status/visible y publica el borrador. La portada existente no puede renombrarse ni ocultarse desde este adaptador. Una operación de publicación eliminando el borrador no equivale a borrar el contenido publicado.
+No hay borrado definitivo de publicaciones. La iteración 3 añade Descartar cambios, Retirar de publicación y Volver a publicar mediante drafts y status/visible; consulta [las reglas editoriales](editorial-actions.md). La portada existente no puede renombrarse ni ocultarse desde este adaptador. Una operación de publicación eliminando el borrador no equivale a borrar el contenido publicado.
 
 ## Imágenes
 

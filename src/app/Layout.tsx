@@ -1,10 +1,12 @@
 import { useRef } from 'react';
+import { useUnsavedChanges } from './UnsavedChanges';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/platform';
 import { useAuth } from '../features/auth/AuthProvider';
 import { useRestaurant } from '../features/restaurants/RestaurantProvider';
 import { Feedback, Loading } from '../components/Feedback';
 export function Layout() {
+  const guard = useUnsavedChanges();
   const auth = useAuth();
   const workspace = useRestaurant();
   const navigate = useNavigate();
@@ -29,8 +31,12 @@ export function Layout() {
     </nav>
   );
   async function logout() {
+    if (!guard.confirmLeave()) return;
     const { error } = await supabase.auth.signOut();
-    if (!error) navigate('/login', { replace: true });
+    if (!error) {
+      guard.setDirty(false);
+      navigate('/login', { replace: true });
+    }
   }
   return (
     <div className="workspace">
@@ -59,6 +65,9 @@ export function Layout() {
               id="restaurant-switch"
               value={workspace.restaurant?.id || ''}
               onChange={(e) => {
+                if (e.target.value === workspace.restaurant?.id) return;
+                if (!guard.confirmLeave()) return;
+                guard.setDirty(false);
                 workspace.select(e.target.value);
                 navigate('/');
               }}

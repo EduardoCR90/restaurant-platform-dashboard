@@ -1,5 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useEffect, lazy, Suspense } from 'react';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  RouterProvider,
+  Route,
+  Navigate,
+  Outlet,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
+import { UnsavedChangesProvider } from './UnsavedChanges';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from '../features/auth/AuthProvider';
 import { AuthPage } from '../features/auth/AuthPages';
 import { RestaurantProvider } from '../features/restaurants/RestaurantProvider';
@@ -45,58 +55,68 @@ function RouteFocus() {
   }, [location.pathname]);
   return null;
 }
-export function AppRoutes() {
+function RootFrame() {
   return (
-    <>
-      <RouteFocus />
-      <Routes>
-        <Route path="/login" element={<AuthPage />} />
-        <Route path="/auth/reset-password" element={<AuthPage mode="reset" />} />
-        <Route path="/auth/update-password" element={<AuthPage mode="update" />} />
-        <Route element={<Protected />}>
-          <Route element={<Workspace />}>
-            <Route index element={<HomePage />} />
-            <Route
-              path="content/:kind"
-              element={
-                <Suspense fallback={<Loading />}>
-                  <ContentList />
-                </Suspense>
-              }
-            />
-            <Route
-              path="content/:kind/:id"
-              element={
-                <Suspense fallback={<Loading />}>
-                  <ContentEditor />
-                </Suspense>
-              }
-            />
-            <Route path="modules" element={<ModulesPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-            <Route path="administration" element={<AdminPage />} />
-            <Route
-              path="*"
-              element={
-                <section>
-                  <h1>No encontramos esa página.</h1>
-                  <a href="/">Volver al espacio</a>
-                </section>
-              }
-            />
-          </Route>
+    <AuthProvider>
+      <UnsavedChangesProvider>
+        <RouteFocus />
+        <Outlet />
+      </UnsavedChangesProvider>
+    </AuthProvider>
+  );
+}
+function EditorRoute() {
+  const { kind, id } = useParams();
+  return <ContentEditor key={`${kind}/${id}`} />;
+}
+function ListRoute() {
+  const { kind } = useParams();
+  return <ContentList key={kind} />;
+}
+function appRoutes() {
+  return createRoutesFromElements(
+    <Route element={<RootFrame />}>
+      <Route path="/login" element={<AuthPage />} />
+      <Route path="/auth/reset-password" element={<AuthPage mode="reset" />} />
+      <Route path="/auth/update-password" element={<AuthPage mode="update" />} />
+      <Route element={<Protected />}>
+        <Route element={<Workspace />}>
+          <Route index element={<HomePage />} />
+          <Route
+            path="content/:kind"
+            element={
+              <Suspense fallback={<Loading />}>
+                <ListRoute />
+              </Suspense>
+            }
+          />
+          <Route
+            path="content/:kind/:id"
+            element={
+              <Suspense fallback={<Loading />}>
+                <EditorRoute />
+              </Suspense>
+            }
+          />
+          <Route path="modules" element={<ModulesPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="administration" element={<AdminPage />} />
+          <Route
+            path="*"
+            element={
+              <section>
+                <h1>No encontramos esa página.</h1>
+                <a href="/">Volver al espacio</a>
+              </section>
+            }
+          />
         </Route>
-      </Routes>
-    </>
+      </Route>
+    </Route>,
   );
 }
 export function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
-  );
+  const [router] = useState(() => createBrowserRouter(appRoutes()));
+  return <RouterProvider router={router} />;
 }

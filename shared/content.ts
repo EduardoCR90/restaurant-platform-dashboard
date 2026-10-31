@@ -346,6 +346,30 @@ export const singletonIds: Partial<Record<Kind, string>> = {
 };
 export const revision = z.string().min(1).max(200).nullable();
 export const contentRequest = z.discriminatedUnion('action', [
+  z.object({
+    restaurantId: z.uuid(),
+    action: z.literal('discard'),
+    kind: kindSchema,
+    id: documentId,
+    draftRev: revision,
+    publishedRev: revision,
+  }),
+  z.object({
+    restaurantId: z.uuid(),
+    action: z.literal('withdraw'),
+    kind: kindSchema,
+    id: documentId,
+    draftRev: revision,
+    publishedRev: revision,
+  }),
+  z.object({
+    restaurantId: z.uuid(),
+    action: z.literal('restore'),
+    kind: kindSchema,
+    id: documentId,
+    draftRev: revision,
+    publishedRev: revision,
+  }),
   z.object({ restaurantId: z.uuid(), action: z.literal('list'), kind: kindSchema }),
   z.object({ restaurantId: z.uuid(), action: z.literal('get'), kind: kindSchema, id: documentId }),
   z.object({
@@ -385,8 +409,15 @@ export type Snapshot = {
   draftRev: string | null;
   publishedRev: string | null;
   document: JsonRecord;
+  withdrawn?: boolean;
 };
-export type ContentItem = { id: string; title: string; draft: boolean; published: boolean };
+export type ContentItem = {
+  id: string;
+  title: string;
+  draft: boolean;
+  published: boolean;
+  withdrawn?: boolean;
+};
 
 export const snapshotSchema = z.object({
   id: documentId,
@@ -394,10 +425,18 @@ export const snapshotSchema = z.object({
   draftRev: revision,
   publishedRev: revision,
   document: z.record(z.string(), z.unknown()),
+  withdrawn: z.boolean().default(false),
 });
 export const contentItemSchema = z.object({
   id: documentId,
   title: z.string(),
   draft: z.boolean(),
   published: z.boolean(),
+  withdrawn: z.boolean().default(false),
+});
+export const discardResultSchema = z.object({
+  discarded: z.literal(true),
+  id: documentId,
+  kind: kindSchema,
+  snapshot: snapshotSchema.nullable(),
 });

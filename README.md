@@ -48,3 +48,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Iteración 2 — Salitre production
 
 [Política, configuración segura, despliegue y validación](docs/salitre-production.md). Conserva la integración existente y no modifica permisos de otros restaurantes.
+
+## Iteración 3 — Gestión editorial
+
+[Acciones, estados, referencias y protección de cambios](docs/editorial-actions.md). Descarta drafts, retira de forma reversible y recupera contenidos sin borrar publicaciones ni perder cambios locales.

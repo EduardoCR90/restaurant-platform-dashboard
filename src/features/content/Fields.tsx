@@ -1,4 +1,5 @@
-import { useId, useState } from 'react';
+import { useUnsavedChanges } from '../../app/UnsavedChanges';
+import { useId, useState, useRef, useEffect } from 'react';
 import type { JsonRecord } from '../../../shared/content';
 import { contentApi } from '../../services/platform';
 import { useRestaurant } from '../restaurants/RestaurantProvider';
@@ -48,6 +49,14 @@ export function FormFields({
   );
 }
 function ImageField({ value, onChange }: { value: unknown; onChange: (value: unknown) => void }) {
+  const guard = useUnsavedChanges();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const ctx = useRestaurant();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -62,10 +71,12 @@ function ImageField({ value, onChange }: { value: unknown; onChange: (value: unk
       : null;
   async function upload(file: File) {
     if (!ctx.restaurant) return;
+    const finish = guard.beginOperation();
     setBusy(true);
     setError('');
     try {
       const asset = await contentApi.upload(ctx.restaurant.id, file);
+      if (!mounted.current) return;
       onChange({
         ...data,
         _type: 'editorialImage',
@@ -73,9 +84,10 @@ function ImageField({ value, onChange }: { value: unknown; onChange: (value: unk
         alt: data.alt || '',
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo subir la imagen');
+      if (mounted.current) setError(e instanceof Error ? e.message : 'No se pudo subir la imagen');
     } finally {
-      setBusy(false);
+      finish();
+      if (mounted.current) setBusy(false);
     }
   }
   return (
