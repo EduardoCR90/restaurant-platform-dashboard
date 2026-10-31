@@ -45,59 +45,96 @@ export function updateQuery(target) {
  get diagnostics affected=row_count; if affected<>1 then raise exception 'No se actualizo exactamente una integracion'; end if;
  end $$;`;
 }
+export function verifyPolicyMetadata(entry, target) {
+  if (!entry) return { matches: false, format: 'absent' };
+  const canonical = JSON.stringify(target);
+  for (const field of ['digest', 'value']) {
+    const fingerprint = entry[field];
+    if (typeof fingerprint !== 'string') continue;
+    // Solo la política de UUIDs: nunca se inspecciona el valor de SANITY_TOKENS.
+    if (fingerprint === canonical) return { matches: true, format: field + '-configuration' };
+    for (const algorithm of ['sha256', 'sha1', 'md5']) {
+      const expected = createHash(algorithm).update(canonical).digest('hex');
+      if (fingerprint.toLowerCase() === expected)
+        return { matches: true, format: field + '-' + algorithm };
+    }
+  }
+  return { matches: false, format: 'different-or-unsupported' };
+}
+class ConfigurationFailure extends Error {
+  constructor(phase) {
+    super(
+      `Configuración detenida en fase ${phase}. No se sobrescribe ni se reintenta; revisar mediante inspect.`,
+    );
+  }
+}
 export async function configureSalitre(
   { operation, expectedRestaurant, expectedIntegration, confirmation },
   api,
 ) {
-  const current = await api('database/query', {
-    method: 'POST',
-    body: { query: inspectQuery, read_only: true },
-  });
-  const target = targetFromRows(current);
-  if (operation === 'inspect')
-    return {
-      status: 'inspected-read-only',
-      currentDataset: current[0].external_dataset,
-      ...target,
-    };
-  assert.equal(operation, 'apply');
-  assert.equal(confirmation, 'HABILITAR SALITRE PRODUCTION');
-  assert.equal(target.restaurantId, expectedRestaurant);
-  assert.equal(target.integrationId, expectedIntegration);
-  const list = await api('secrets');
-  assert.ok(Array.isArray(list));
-  assert.ok(
-    list.some((s) => s.name === 'SANITY_TOKENS'),
-    'Falta SANITY_TOKENS: no se cambia la integración',
-  );
-  const value = JSON.stringify(target),
-    digest = createHash('sha256').update(value).digest('hex');
-  const existing = list.find((s) => s.name === secretName);
-  // No se sobrescribe una configuración existente diferente ni se lee su valor.
-  if (existing)
-    assert.equal(
-      existing.digest,
-      digest,
-      'La política existente difiere: revisar sin sobrescribir',
-    );
-  else await api('secrets', { method: 'POST', body: [{ name: secretName, value }] });
-  const verified = await api('secrets');
-  assert.ok(
-    verified.some((s) => s.name === secretName && s.digest === digest),
-    'No se pudo verificar la política; integración sin cambiar',
-  );
-  if (current[0].external_dataset !== 'production')
-    await api('database/query', {
+  let phase = 'inspect-integration';
+  try {
+    const current = await api('database/query', {
       method: 'POST',
-      body: { query: updateQuery(target), read_only: false },
+      body: { query: inspectQuery, read_only: true },
     });
-  const after = await api('database/query', {
-    method: 'POST',
-    body: { query: inspectQuery, read_only: true },
-  });
-  assert.deepEqual(targetFromRows(after), target);
-  assert.equal(after[0].external_dataset, 'production');
-  return { status: 'configured-no-content-written', ...target };
+    const target = targetFromRows(current);
+    phase = 'inspect-policy';
+    const list = await api('secrets');
+    assert.ok(Array.isArray(list));
+    const existing = list.find((s) => s.name === secretName);
+    const verification = verifyPolicyMetadata(existing, target);
+    const hasSanityTokens = list.some((s) => s.name === 'SANITY_TOKENS');
+    if (operation === 'inspect')
+      return {
+        status: 'inspected-read-only',
+        currentDataset: current[0].external_dataset,
+        ...target,
+        hasSanityTokens,
+        policyPresent: !!existing,
+        policyMatchesTarget: verification.matches,
+        policyMetadataFormat: verification.format,
+      };
+    phase = 'validate-authorization';
+    assert.equal(operation, 'apply');
+    assert.equal(confirmation, 'HABILITAR SALITRE PRODUCTION');
+    assert.equal(target.restaurantId, expectedRestaurant);
+    assert.equal(target.integrationId, expectedIntegration);
+    phase = 'validate-token-presence';
+    assert.ok(hasSanityTokens);
+    const value = JSON.stringify(target);
+    phase = 'verify-existing-policy';
+    if (existing) assert.ok(verification.matches);
+    else {
+      phase = 'create-policy';
+      await api('secrets', { method: 'POST', body: [{ name: secretName, value }] });
+    }
+    phase = 'verify-policy';
+    const verified = await api('secrets');
+    assert.ok(
+      verifyPolicyMetadata(
+        verified.find((s) => s.name === secretName),
+        target,
+      ).matches,
+    );
+    phase = 'update-integration';
+    if (current[0].external_dataset !== 'production')
+      await api('database/query', {
+        method: 'POST',
+        body: { query: updateQuery(target), read_only: false },
+      });
+    phase = 'verify-integration';
+    const after = await api('database/query', {
+      method: 'POST',
+      body: { query: inspectQuery, read_only: true },
+    });
+    assert.deepEqual(targetFromRows(after), target);
+    assert.equal(after[0].external_dataset, 'production');
+    return { status: 'configured-no-content-written', ...target };
+  } catch (error) {
+    if (error?.message?.startsWith('Gestión Supabase rechazada (HTTP ')) throw error;
+    throw new ConfigurationFailure(phase);
+  }
 }
 export function managementApi(token, request = fetch) {
   assert.ok(typeof token === 'string' && token.trim(), 'Falta credencial de gestión');
@@ -138,9 +175,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     console.log(JSON.stringify(result));
   } catch (error) {
     console.error(
-      error?.message?.startsWith('Gestión Supabase rechazada (HTTP ')
+      error instanceof ConfigurationFailure
         ? error.message
-        : 'Configuración detenida: revisar identidad, permisos y política existente. No se muestran respuestas privadas ni se reintenta.',
+        : error?.message?.startsWith('Gestión Supabase rechazada (HTTP ')
+          ? error.message
+          : 'Configuración detenida: revisar identidad, permisos y política existente. No se muestran respuestas privadas ni se reintenta.',
     );
     process.exitCode = 1;
   }

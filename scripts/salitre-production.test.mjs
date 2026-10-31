@@ -6,6 +6,7 @@ import {
   targetFromRows,
   managementApi,
   updateQuery,
+  verifyPolicyMetadata,
 } from './salitre-production.mjs';
 const row = {
   restaurant_id: '00000000-0000-4000-8000-000000000101',
@@ -61,7 +62,7 @@ test('inspect solo lee y devuelve IDs seleccionados, no secretos ni configuracio
     result = await configureSalitre({ operation: 'inspect' }, f.api);
   assert.equal(result.integrationId, row.integration_id);
   assert.equal(result.currentDataset, 'staging');
-  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls.length, 2);
   assert.equal(f.calls[0].body.read_only, true);
   assert.ok(!JSON.stringify(result).includes('private-unused'));
 });
@@ -168,4 +169,31 @@ test('workflow operacional solo manual/main, permisos mínimos y secretos solo e
     workflow.indexOf('secrets.SUPABASE_ACCESS_TOKEN') >
       workflow.indexOf('name: Inspect or configure existing Salitre only'),
   );
+});
+
+test('verifica formatos de metadatos sin cambiar la política y rechaza valores diferentes', () => {
+  for (const field of ['digest', 'value'])
+    for (const algorithm of ['sha256', 'sha1', 'md5']) {
+      const entry = { [field]: createHash(algorithm).update(JSON.stringify(target)).digest('hex') };
+      assert.equal(verifyPolicyMetadata(entry, target).matches, true);
+      assert.equal(
+        verifyPolicyMetadata(entry, { ...target, integrationId: row.restaurant_id }).matches,
+        false,
+      );
+    }
+  assert.equal(verifyPolicyMetadata({ value: 'SYNTHETIC-PRIVATE-UNKNOWN' }, target).matches, false);
+});
+
+test('inspect de una política en value-md5 solo lee y permite comprobarla sin exponer su huella', async () => {
+  const f = fake();
+  f.state.secrets.push({
+    name: 'SALITRE_PRODUCTION_WRITE_TARGET',
+    value: createHash('md5').update(JSON.stringify(target)).digest('hex'),
+  });
+  const info = await configureSalitre({ operation: 'inspect' }, f.api);
+  assert.equal(info.policyMatchesTarget, true);
+  assert.equal(info.policyMetadataFormat, 'value-md5');
+  assert.ok(!JSON.stringify(info).includes(f.state.secrets[1].value));
+  await configureSalitre(input, f.api);
+  assert.ok(!f.calls.some((c) => c.path === 'secrets' && c.method === 'POST'));
 });
