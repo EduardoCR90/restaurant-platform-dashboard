@@ -1,3 +1,4 @@
+import { HistoricalSections } from './HistoricalSections';
 import { PublicationStatus } from '../publications/PublicationStatus';
 import { useUnsavedChanges } from '../../app/UnsavedChanges';
 import { canWithdraw, editorialState, editorialLabels } from '../../../shared/editorial-state';
@@ -234,13 +235,20 @@ export function ContentEditor() {
           ? {
               restaurantId: ctx.restaurant.id,
               action: 'save',
+              visualContractVersion: 2,
               kind,
               id: snapshot.id,
               draftRev: snapshot.draftRev,
               publishedRev: snapshot.publishedRev,
               document: valid,
             }
-          : { restaurantId: ctx.restaurant.id, action: 'create', kind, document: valid },
+          : {
+              restaurantId: ctx.restaurant.id,
+              action: 'create',
+              visualContractVersion: 2,
+              kind,
+              document: valid,
+            },
       );
       if (!mounted.current) return;
       setSnapshot(next);
@@ -450,15 +458,28 @@ export function ContentEditor() {
                   texto.
                 </p>
               )}
+              {kind === 'settings' && snapshot?.visualContractVersion !== 2 && (
+                <p role="status">
+                  La configuración visual estará disponible al completar la actualización del
+                  servidor. Recarga el documento después.
+                </p>
+              )}
               <fieldset disabled={busy}>
                 <FormFields
-                  definitions={contentFields(kind, document)}
+                  definitions={contentFields(kind, document, snapshot?.visualContractVersion === 2)}
                   value={document}
                   onChange={change}
                   options={options}
                 />
+                {kind === 'page' && snapshot?.visualContractVersion === 2 && (
+                  <HistoricalSections document={document} onChange={change} />
+                )}
                 {kind === 'page' && (
                   <BlockEditor
+                    visualEnabled={snapshot?.visualContractVersion === 2}
+                    historical={['inicio', 'carta', 'restaurante', 'reservas'].includes(
+                      String((document.slug as { current?: string })?.current),
+                    )}
                     value={document.blocks}
                     onChange={(blocks) => change({ ...document, blocks })}
                     options={options}

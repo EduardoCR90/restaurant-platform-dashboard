@@ -734,3 +734,169 @@ it.each(['publish', 'restore'])(
     expect(f.mutate).not.toHaveBeenCalled();
   },
 );
+
+describe('temas y composición: contrato visual 2', () => {
+  const settings = {
+    name: 'Ejemplo',
+    tagline: 'Firma',
+    concept: 'Concepto',
+    address: 'Dirección',
+    email: 'hello@example.test',
+    phone: '000',
+    isFictional: true,
+    hours: [{ _key: 'hours', days: 'Lunes', time: '12:00' }],
+  };
+  it('guarda/publica presets sin llenar defaults y preserva extensiones existentes del servidor', async () => {
+    const f = fakeStore();
+    f.docs.set('restaurant-settings', {
+      ...settings,
+      _id: 'restaurant-settings',
+      _type: 'settings',
+      _rev: 'p',
+      theme: { name: 'salitre', paper: '#123456', futureNote: 'preserve' },
+    });
+    const result = (await executeContent(
+      {
+        action: 'save',
+        restaurantId,
+        kind: 'settings',
+        id: 'restaurant-settings',
+        draftRev: null,
+        publishedRev: 'p',
+        visualContractVersion: 2,
+        document: { ...settings, theme: { preset: 'modern', injected: 'drop' } },
+      },
+      f.deps,
+    )) as { draftRev: string; visualContractVersion: number };
+    expect(result.visualContractVersion).toBe(2);
+    expect(f.docs.get('drafts.restaurant-settings')?.theme).toEqual({
+      preset: 'modern',
+      futureNote: 'preserve',
+    });
+    await executeContent(
+      {
+        action: 'publish',
+        restaurantId,
+        kind: 'settings',
+        id: 'restaurant-settings',
+        draftRev: result.draftRev,
+        publishedRev: 'p',
+      },
+      f.deps,
+    );
+    expect(f.docs.get('restaurant-settings')?.theme).toEqual({
+      preset: 'modern',
+      futureNote: 'preserve',
+    });
+  });
+  it('no permite a un cliente antiguo borrar ajustes que no conoce', async () => {
+    const f = fakeStore();
+    f.docs.set('restaurant-settings', {
+      ...settings,
+      _id: 'restaurant-settings',
+      _type: 'settings',
+      _rev: 'p',
+      theme: { preset: 'casual' },
+    });
+    await expect(
+      executeContent(
+        {
+          action: 'save',
+          restaurantId,
+          kind: 'settings',
+          id: 'restaurant-settings',
+          draftRev: null,
+          publishedRev: 'p',
+          document: settings,
+        },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it('bloques y flags de sección conservan orden, referencias y disponibilidad al publicar', async () => {
+    const f = fakeStore();
+    f.docs.set('p', { ...page, _id: 'p', _type: 'page', _rev: 'p' });
+    const blocks = [
+      { _type: 'hero', _key: 'a', title: 'Hero', variant: 'split', enabled: false },
+      { _type: 'divider', _key: 'b', enabled: true },
+    ];
+    const document = { ...page, blocks, composition: { sections: { featured: false } } };
+    const result = (await executeContent(
+      {
+        action: 'save',
+        restaurantId,
+        kind: 'page',
+        id: 'p',
+        draftRev: null,
+        publishedRev: 'p',
+        visualContractVersion: 2,
+        document,
+      },
+      f.deps,
+    )) as { draftRev: string };
+    await executeContent(
+      {
+        action: 'publish',
+        restaurantId,
+        kind: 'page',
+        id: 'p',
+        draftRev: result.draftRev,
+        publishedRev: 'p',
+      },
+      f.deps,
+    );
+    expect(f.docs.get('p')?.blocks).toEqual(blocks);
+    expect(f.docs.get('p')?.composition).toEqual(document.composition);
+  });
+  it('sin permisos editoriales un preset no concede autoridad para guardar', async () => {
+    const f = fakeStore();
+    f.deps.authorize.mockRejectedValue(new HttpError(403, 'Denied'));
+    await expect(
+      executeContent(
+        {
+          action: 'save',
+          restaurantId,
+          kind: 'settings',
+          id: 'restaurant-settings',
+          draftRev: null,
+          publishedRev: null,
+          visualContractVersion: 2,
+          document: { ...settings, theme: { preset: 'casual' } },
+        },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it.each([
+    { preset: 'bad' },
+    { paper: 'red;display:none' },
+    { contentMax: 1 },
+    { hero: '<script>' },
+  ])('rechaza ajustes no seguros %j antes de escribir', async (theme) => {
+    const f = fakeStore();
+    f.docs.set('restaurant-settings', {
+      ...settings,
+      _id: 'restaurant-settings',
+      _type: 'settings',
+      _rev: 'p',
+    });
+    await expect(
+      executeContent(
+        {
+          action: 'save',
+          restaurantId,
+          kind: 'settings',
+          id: 'restaurant-settings',
+          draftRev: null,
+          publishedRev: 'p',
+          visualContractVersion: 2,
+          document: { ...settings, theme },
+        },
+        f.deps,
+      ),
+    ).rejects.toThrow();
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+});

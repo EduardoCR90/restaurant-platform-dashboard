@@ -56,3 +56,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Iteración 4 — Publicación y despliegues
 
 [Estados, correlación verificable, OIDC, migración y operación](docs/publication-tracking.md). Sanity sigue siendo la fuente editorial; Supabase solo guarda metadatos del proceso.
+
+## Fase 5 · Variantes visuales y composición
+
+[Contrato, controles editoriales, despliegue y validación](docs/visual-themes.md). Presets Elegant/Modern/Casual y variantes opcionales, sin migrar contenido.
