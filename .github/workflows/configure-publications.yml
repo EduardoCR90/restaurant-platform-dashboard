@@ -1,0 +1,37 @@
+name: Configure publication tracking (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Inspect read-only or apply the reviewed additive migration and Salitre configuration
+        required: true
+        type: choice
+        options: [inspect, apply]
+        default: inspect
+permissions:
+  contents: read
+concurrency:
+  group: supabase-edge-wanrzgumoamryuybmopa
+  cancel-in-progress: false
+jobs:
+  configure:
+    if: github.ref == 'refs/heads/main' && github.repository == 'EduardoCR90/restaurant-platform-dashboard' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate the exact migration with isolated PostgreSQL
+        run: npx vitest run tests/publications-db.test.ts
+      - run: node --test scripts/configure-publications.test.mjs
+      - name: Configure metadata without touching CMS content or existing permissions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PUBLICATION_OPERATION: ${{ inputs.operation }}
+        run: node scripts/configure-publications.mjs

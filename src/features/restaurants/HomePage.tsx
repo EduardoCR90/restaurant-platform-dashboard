@@ -1,3 +1,4 @@
+import { PublicationStatus } from '../publications/PublicationStatus';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useRestaurant } from './RestaurantProvider';
@@ -57,6 +58,9 @@ export function HomePage() {
               <p className="muted">La conectividad se comprueba al abrir el editor.</p>
             </div>
           </section>
+          {ctx.contentAllowed && (
+            <PublicationStatus key={ctx.restaurant.id} restaurantId={ctx.restaurant.id} />
+          )}
           <section className="quick-links">
             <p className="eyebrow">Lo esencial, a mano</p>
             {ctx.contentAllowed ? (

@@ -816,3 +816,15 @@ select {
     scroll-behavior: auto !important;
   }
 }
+
+.publication-status {
+  margin-block: 1.5rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--line, #d9d5ce);
+}
+.publication-status h2 {
+  font-size: 1rem;
+}
+.publication-status p {
+  margin-block: 0.35rem 0.75rem;
+}

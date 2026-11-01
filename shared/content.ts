@@ -357,6 +357,7 @@ export const contentRequest = z.discriminatedUnion('action', [
   z.object({
     restaurantId: z.uuid(),
     action: z.literal('withdraw'),
+    operationId: z.uuid().optional(),
     kind: kindSchema,
     id: documentId,
     draftRev: revision,
@@ -365,6 +366,7 @@ export const contentRequest = z.discriminatedUnion('action', [
   z.object({
     restaurantId: z.uuid(),
     action: z.literal('restore'),
+    operationId: z.uuid().optional(),
     kind: kindSchema,
     id: documentId,
     draftRev: revision,
@@ -390,6 +392,7 @@ export const contentRequest = z.discriminatedUnion('action', [
   z.object({
     restaurantId: z.uuid(),
     action: z.literal('publish'),
+    operationId: z.uuid().optional(),
     kind: kindSchema,
     id: documentId,
     draftRev: z.string().min(1),
@@ -410,6 +413,7 @@ export type Snapshot = {
   publishedRev: string | null;
   document: JsonRecord;
   withdrawn?: boolean;
+  publicationId?: string;
 };
 export type ContentItem = {
   id: string;
@@ -420,6 +424,7 @@ export type ContentItem = {
 };
 
 export const snapshotSchema = z.object({
+  publicationId: z.uuid().optional(),
   id: documentId,
   kind: kindSchema,
   draftRev: revision,

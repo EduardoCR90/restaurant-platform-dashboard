@@ -2,7 +2,7 @@
 
 Dashboard privado React + TypeScript + Vite para varios restaurantes, con Supabase Auth/PostgreSQL/RLS y edición de Sanity mediante Edge Functions. Aplicación separada de Astro y Studio; conserva los diez bloques de Salitre.
 
-**Estado real:** implementación y pruebas locales; necesita configurar migraciones, usuarios, secretos y funciones en Supabase y desplegar Vercel para validar el recorrido remoto completo. Esta entrega no migra producción, no modifica documentos reales de Sanity ni configura webhooks. El backend conserva staging y permite únicamente la excepción exacta de Salitre configurada para hfa8zkyw/production; consulta docs/salitre-production.md. Las variables automáticas de Supabase tienen fallback público compatible y el override opcional `APP_SUPABASE_PUBLISHABLE_KEY`; no crees secretos personalizados con prefijo `SUPABASE_`. No hay autenticación simulada en la aplicación. Los tests usan servicios sustituidos y PostgreSQL aislado.
+**Estado:** las iteraciones 1–3 están integradas y el propietario ha validado el flujo editorial real de Salitre. La iteración 4 añade seguimiento de publicaciones y despliegues, conservando la política de production y el webhook existentes. Consulta [instalación, estados y validación](docs/publication-tracking.md). Los tests usan servicios de ensayo; no modifican contenido real.
 
 ## Arranque
 
@@ -52,3 +52,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Iteración 3 — Gestión editorial
 
 [Acciones, estados, referencias y protección de cambios](docs/editorial-actions.md). Descarta drafts, retira de forma reversible y recupera contenidos sin borrar publicaciones ni perder cambios locales.
+
+## Iteración 4 — Publicación y despliegues
+
+[Estados, correlación verificable, OIDC, migración y operación](docs/publication-tracking.md). Sanity sigue siendo la fuente editorial; Supabase solo guarda metadatos del proceso.

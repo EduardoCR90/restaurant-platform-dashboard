@@ -16,3 +16,5 @@
 - PRs pequeñas cuando se continúe el desarrollo. No modificar web pública ni Studio sin justificar compatibilidad.
 
 - Iteración 3: conservar descarte exclusivo de drafts y retirada reversible por visible/status. No borrar publicaciones ni assets. Respetar referencias, rutas estructurales, revisiones y la guarda común antes de cambiar documento/restaurante; ver docs/editorial-actions.md.
+
+- Iteración 4: no añadir otro dispatch. Confirmar Web actualizada solo con OIDC del workflow registrado y evidencia de revisiones del mismo build. Mantener idempotencia, RLS de metadatos y expiración/recuperación; ver docs/publication-tracking.md.

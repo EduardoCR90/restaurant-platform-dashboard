@@ -48,7 +48,7 @@ La UI sube bytes al backend autenticado. El servidor limita tamaño, valida MIME
 
 ## Web pública y flujo de reconstrucción
 
-Publicar cambia Sanity, no el HTML ya generado. Se conserva el workflow de Astro/GitHub Pages existente. Si su webhook está activo, la publicación lo activará según su configuración; si no, ejecuta el workflow manual de la web pública. Este dashboard no crea, modifica o acredita un webhook, ni pide su token al navegador.
+Publicar cambia Sanity, no el HTML ya generado. Se conserva el workflow de Astro/GitHub Pages existente. Si su webhook está activo, la publicación lo activará según su configuración; si no, ejecuta el workflow manual de la web pública. El dashboard conserva ese disparador y no pide su token al navegador. La [iteración 4](publication-tracking.md) añade confirmación verificable de las revisiones incluidas y el resultado del despliegue.
 
 Salitre está autorizado como restaurante de pruebas; valida la configuración limitada y el despliegue descritos en salitre-production.md antes de probar publicaciones. Las pruebas locales mockean la API; ninguna escritura real se realizó para comprobar esta fase.
 

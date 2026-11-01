@@ -12,6 +12,9 @@ const temporary = await mkdtemp(join(tmpdir(), 'platform-edge-package-'));
 const fixture = join(temporary, 'project');
 const expected = {
   content: [
+    'shared/publication-mutation.ts',
+    'shared/publications.ts',
+    'supabase/functions/_shared/publications.ts',
     'supabase/functions/content/index.ts',
     'supabase/functions/_shared/auth.ts',
     'supabase/functions/_shared/environment.ts',
@@ -23,6 +26,15 @@ const expected = {
     'shared/editorial-state.ts',
     'shared/content.ts',
     'shared/editorial.ts',
+  ],
+  publications: [
+    'supabase/functions/publications/index.ts',
+    'supabase/functions/_shared/publications.ts',
+    'supabase/functions/_shared/auth.ts',
+    'supabase/functions/_shared/http.ts',
+    'supabase/functions/_shared/environment.ts',
+    'shared/github-oidc.ts',
+    'shared/publications.ts',
   ],
   'platform-admin': [
     'supabase/functions/_shared/content-authorization.ts',
@@ -189,7 +201,7 @@ try {
     );
   }
   assert.deepEqual(requestErrors, []);
-  assert.equal(uploads.size, 2);
+  assert.equal(uploads.size, 3);
   console.log(
     'Sin contacto con Supabase real, sin despliegue y sin escrituras de contenido o base de datos.',
   );
