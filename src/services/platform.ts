@@ -1,3 +1,4 @@
+import { templateReleaseSchema, websiteStateSchema } from '../../shared/platform-contract';
 import { publicationSchema } from '../../shared/publications';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -116,14 +117,14 @@ export async function updateProfile(id: string, name: string) {
   if (error || !data?.length) throw new Error('No se pudo guardar el perfil.');
 }
 export async function toggleModule(restaurantId: string, module: string, enabled: boolean) {
-  const { data, error } = await supabase
-    .from('restaurant_modules')
-    .update({ enabled })
-    .eq('restaurant_id', restaurantId)
-    .eq('module_key', module)
-    .select('id');
-  if (error || !data?.length)
-    throw new Error('Activación no autorizada; comprueba contratación, rol y estado.');
+  await adminOperation({
+    operation: 'module_activation',
+    payload: {
+      restaurant_id: restaurantId,
+      module_key: module,
+      enabled,
+    },
+  });
 }
 export class ApiError extends Error {
   constructor(
@@ -196,4 +197,37 @@ export async function listPublications(restaurantId: string, documentId?: string
       ...(documentId ? { documentId } : {}),
     }),
   );
+}
+
+export async function loadWebsiteVersions(restaurantId: string) {
+  z.uuid().parse(restaurantId);
+  const [releases, website] = await Promise.all([
+    supabase
+      .from('template_releases')
+      .select(
+        'template_key,version,source_commit,distribution_hash,configuration_contract,content_contract,visual_contract',
+      ),
+    supabase
+      .from('restaurant_websites')
+      .select(
+        'restaurant_id,installed_template_key,installed_version,desired_template_key,desired_version,revision,verified_run_id,verified_at',
+      )
+      .eq('restaurant_id', restaurantId)
+      .maybeSingle(),
+  ]);
+  if (releases.error || website.error) throw new Error('Versión no disponible');
+  const catalog = z.array(templateReleaseSchema).parse(releases.data);
+  const row = website.data;
+  const release = (key: unknown, version: unknown) =>
+    catalog.find((item) => item.template_key === key && item.version === version) ?? null;
+  return {
+    releases: catalog,
+    website: row
+      ? websiteStateSchema.parse({
+          ...row,
+          installed_release: release(row.installed_template_key, row.installed_version),
+          desired_release: release(row.desired_template_key, row.desired_version),
+        })
+      : null,
+  };
 }

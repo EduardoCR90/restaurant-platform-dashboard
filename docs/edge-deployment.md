@@ -51,3 +51,7 @@ Si falla un paso, revisa cuál de las dos funciones llegó a actualizarse antes 
 ## Política actual de Sanity
 
 La iteración 2 añade la excepción de Salitre configurada por tupla exacta. [Configurar antes de activar production](salitre-production.md); las restricciones anteriores de staging describen la entrega inicial. No eliminar ni sustituir la integración existente.
+
+## Fase 5: rollout validado
+
+El despliegue manual sigue disponible. El workflow es también reutilizable desde `Roll out validated platform main`, que exige CI verde del main actual del mismo repositorio, aplica primero metadatos/permisos revisados y utiliza el SHA exacto validado. La llamada reutilizable conserva los mismos tests, CLI fija, tres funciones y secretos. No hay escrituras CMS ni bootstrap.

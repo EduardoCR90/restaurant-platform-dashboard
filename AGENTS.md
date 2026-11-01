@@ -20,3 +20,5 @@
 - Iteración 4: no añadir otro dispatch. Confirmar Web actualizada solo con OIDC del workflow registrado y evidencia de revisiones del mismo build. Mantener idempotencia, RLS de metadatos y expiración/recuperación; ver docs/publication-tracking.md.
 
 - Fase 5 iteración 2: `visual-contract.lock.json` fija la copia portable del contrato del template v0.2.0. No divergir ni materializar defaults. Conservar negociación de capacidad visual y guarda de clientes antiguos; ver docs/visual-themes.md.
+
+- Fase 5 cerrada: plantilla/versiones y módulos son exclusivos de Super Admin. Preservar guardas editoriales en save/create/publish/restore/discard y versiones instaladas solo tras ready+succeeded OIDC coincidentes. Contrato portable y catálogo inmutables; ver docs/template-governance.md. No ejecutar el aprovisionamiento hasta fase 6.

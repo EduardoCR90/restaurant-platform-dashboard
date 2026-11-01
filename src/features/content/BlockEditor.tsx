@@ -1,4 +1,5 @@
 import { variantsForBlock, optionLabels } from '../../../shared/visual';
+import { designBlockFields } from '../../../shared/editorial-permissions';
 import { useState } from 'react';
 import { blockNames, type JsonRecord } from '../../../shared/content';
 import { FormFields, move, type ReferenceOptions, asRecord } from './Fields';
@@ -21,9 +22,11 @@ export function BlockEditor({
   options,
   historical = false,
   visualEnabled = true,
+  manageDesign = false,
 }: {
   historical?: boolean;
   visualEnabled?: boolean;
+  manageDesign?: boolean;
   value: unknown;
   onChange: (blocks: JsonRecord[]) => void;
   options: ReferenceOptions;
@@ -75,39 +78,51 @@ export function BlockEditor({
               >
                 Bajar bloque {i + 1}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `¿Quitar este bloque de la composición? Se conservarán sus imágenes.${historical && blocks.length === 1 ? ' La lista vacía recuperará la composición predefinida.' : ''}`,
+              {manageDesign && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `¿Quitar este bloque de la composición? Se conservarán sus imágenes.${historical && blocks.length === 1 ? ' La lista vacía recuperará la composición predefinida.' : ''}`,
+                      )
                     )
-                  )
-                    onChange(blocks.filter((_, n) => n !== i));
-                }}
-              >
-                Quitar bloque {i + 1}
-              </button>
+                      onChange(blocks.filter((_, n) => n !== i));
+                  }}
+                >
+                  Quitar bloque {i + 1}
+                </button>
+              )}
             </div>
             {blockFields[name] ? (
               <FormFields
                 definitions={[
-                  ...blockFields[name],
-                  {
-                    name: 'variant',
-                    label: 'Presentación',
-                    type: 'select',
-                    options: visualEnabled ? variantsForBlock(name) : ['editorial', 'compact'],
-                    optionLabels,
-                    allowInherit: true,
-                  },
-                  {
-                    name: 'alignment',
-                    label: 'Alineación',
-                    type: 'select',
-                    options: ['left', 'center'],
-                    optionLabels: { left: 'Izquierda', center: 'Centro' },
-                  },
+                  ...blockFields[name].filter(
+                    (field) =>
+                      manageDesign ||
+                      !designBlockFields.includes(field.name as (typeof designBlockFields)[number]),
+                  ),
+                  ...(manageDesign
+                    ? [
+                        {
+                          name: 'variant',
+                          label: 'Presentación',
+                          type: 'select',
+                          options: visualEnabled
+                            ? variantsForBlock(name)
+                            : ['editorial', 'compact'],
+                          optionLabels,
+                          allowInherit: true,
+                        } as const,
+                        {
+                          name: 'alignment',
+                          label: 'Alineación',
+                          type: 'select',
+                          options: ['left', 'center'],
+                          optionLabels: { left: 'Izquierda', center: 'Centro' },
+                        } as const,
+                      ]
+                    : []),
                 ]}
                 value={block}
                 onChange={(next) => onChange(blocks.map((old, n) => (n === i ? next : old)))}
@@ -119,43 +134,45 @@ export function BlockEditor({
           </details>
         );
       })}
-      <div className="add-block">
-        <label>
-          Tipo de bloque
-          <select value={type} onChange={(e) => setType(e.target.value as typeof type)}>
-            {blockNames.map((name) => (
-              <option key={name} value={name}>
-                {blockLabels[name]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            if (
-              historical &&
-              !blocks.length &&
-              !window.confirm(
-                'Añadir bloques sustituye la composición predefinida al publicar, sin borrar sus campos originales. ¿Continuar?',
+      {manageDesign && (
+        <div className="add-block">
+          <label>
+            Tipo de bloque
+            <select value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+              {blockNames.map((name) => (
+                <option key={name} value={name}>
+                  {blockLabels[name]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                historical &&
+                !blocks.length &&
+                !window.confirm(
+                  'Añadir bloques sustituye la composición predefinida al publicar, sin borrar sus campos originales. ¿Continuar?',
+                )
               )
-            )
-              return;
-            onChange([
-              ...blocks,
-              {
-                _key: crypto.randomUUID(),
-                _type: type,
-                ...(visualEnabled ? { enabled: true } : { variant: 'editorial' }),
-                alignment: 'left',
-                ...(type === 'divider' ? { spacing: 'medium', line: true } : {}),
-              },
-            ]);
-          }}
-        >
-          Añadir bloque
-        </button>
-      </div>
+                return;
+              onChange([
+                ...blocks,
+                {
+                  _key: crypto.randomUUID(),
+                  _type: type,
+                  ...(visualEnabled ? { enabled: true } : { variant: 'editorial' }),
+                  alignment: 'left',
+                  ...(type === 'divider' ? { spacing: 'medium', line: true } : {}),
+                },
+              ]);
+            }}
+          >
+            Añadir bloque
+          </button>
+        </div>
+      )}
     </section>
   );
 }

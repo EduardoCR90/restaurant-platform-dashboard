@@ -4,14 +4,14 @@
 
 El navegador es un cliente no fiable. IDs, rutas, selectores, flags, preferencias locales y campos de Sanity no conceden acceso. La publishable key es pública. Ninguna clave administrativa forma parte del build.
 
-| Identidad             | Alcance                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| Sin sesión            | Login/recuperación; sin tablas privadas ni RPC editorial                                                |
-| Perfil suspendido     | Sin perfil privado, restaurantes ni autorización editorial                                              |
-| Sin membresía         | Perfil propio, sin datos de restaurante                                                                 |
-| Staff activo          | Lectura del restaurante activo y sus módulos; sin edición editorial, roles o contratación               |
-| Owner/manager activo  | Contenido si módulo contratado y activo; nombre del restaurante y activación de módulos concedidos      |
-| Platform admin activo | Administración global mediante backend; contenido solo con restaurante activo y módulo concedido/activo |
+| Identidad             | Alcance                                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Sin sesión            | Login/recuperación; sin tablas privadas ni RPC editorial                                                                |
+| Perfil suspendido     | Sin perfil privado, restaurantes ni autorización editorial                                                              |
+| Sin membresía         | Perfil propio, sin datos de restaurante                                                                                 |
+| Staff activo          | Lectura del restaurante activo y sus módulos; sin edición editorial, roles o contratación                               |
+| Owner/manager activo  | Contenido si módulo contratado y activo; nombre del restaurante; orden/visibilidad, sin diseño ni activación de módulos |
+| Platform admin activo | Administración global mediante backend; contenido solo con restaurante activo y módulo concedido/activo                 |
 
 No hay una política permisiva global para simplificar el desarrollo. No se usan metadatos JWT/user_metadata como autoridad comercial. platform_admin está en app_private, separado de membresías.
 
@@ -25,7 +25,7 @@ Se revoca ejecución de funciones al público/anónimo. Solo authenticated recib
 
 ## Privilegios de columnas
 
-Un usuario puede actualizar su display_name, un owner/manager el name de su restaurante activo y enabled de un módulo contratado. No puede modificar role, status, restaurant_id, slug, granted, provider o IDs. Esas operaciones solo pasan por backend privilegiado. RLS filtra además cada fila. Las políticas de membresías no se consultan a sí mismas recursivamente.
+Un usuario puede actualizar su display_name, un owner/manager el name de su restaurante activo ; la activación de módulos es exclusiva de Super Admin mediante backend. No puede modificar role, status, restaurant_id, slug, granted, provider o IDs. Esas operaciones solo pasan por backend privilegiado. RLS filtra además cada fila. Las políticas de membresías no se consultan a sí mismas recursivamente.
 
 ## Editor y almacenamiento
 
@@ -49,3 +49,5 @@ Las claves del runtime se resuelven en `_shared/environment.ts`. El cliente de u
 ## Seguimiento de publicaciones
 
 Las nuevas tablas de metadatos tienen RLS. Solo el backend, tras authorize_content o un OIDC GitHub verificado y asociado al destino, puede escribirlas. No se usa service_role para editar Sanity. Configuración de repositorios, revisiones y seguridad del callback: [publicación y despliegues](publication-tracking.md).
+
+La [consolidación de fase 5](template-governance.md) sustituye la antigua activación de módulos por clientes, separa diseño de contenido y protege todos los caminos de publicación de drafts privilegiados.

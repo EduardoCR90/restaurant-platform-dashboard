@@ -1,0 +1,20 @@
+[
+  {
+    "template_key": "restaurant-editorial",
+    "version": "0.3.0",
+    "source_commit": "069dcf48778d9f2eb18ca7176b4da97fd60d5237",
+    "distribution_hash": "b6a3cfc5ae64bf4b5484a116b9808db7996f02580eb3f29f069a00668025be6a",
+    "configuration_contract": 1,
+    "content_contract": "salitre-v1",
+    "visual_contract": 2
+  },
+  {
+    "template_key": "restaurant-editorial",
+    "version": "0.2.0",
+    "source_commit": "7340551f48a5f95e75d035ff70fb5c93f18d919a",
+    "distribution_hash": "351068ad54f25597ce29ee9b92ea309596e4a49904a6f47ed0031006215eb6a6",
+    "configuration_contract": 1,
+    "content_contract": "salitre-v1",
+    "visual_contract": 2
+  }
+]

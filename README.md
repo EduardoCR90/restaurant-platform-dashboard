@@ -60,3 +60,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Fase 5 · Variantes visuales y composición
 
 [Contrato, controles editoriales, despliegue y validación](docs/visual-themes.md). Presets Elegant/Modern/Casual y variantes opcionales, sin migrar contenido.
+
+## Fase 5 · Consolidación y permisos
+
+[Versiones, actualizaciones seguras, permisos definitivos y contrato de fase 6](docs/template-governance.md). La activación de módulos y el diseño son exclusivos de Super Admin.

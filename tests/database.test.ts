@@ -19,7 +19,12 @@ beforeAll(async () => {
   await db.exec(
     `create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth to authenticated;`,
   );
-  await db.exec(await readFile('supabase/migrations/202610310001_platform.sql', 'utf8'));
+  for (const file of [
+    '202610310001_platform.sql',
+    '202610310002_publications.sql',
+    '202611010001_template_governance.sql',
+  ])
+    await db.exec(await readFile('supabase/migrations/' + file, 'utf8'));
   await db.exec(`insert into auth.users(id) values ${[owner, staff, other, suspended, outsider, admin, manager].map((x) => `('${x}')`).join(',')};
  insert into public.restaurants(id,name,slug,status) values('${a}','A','a','active'),('${b}','B','b','active'),('${c}','C','c','suspended');
  insert into public.restaurant_memberships(restaurant_id,user_id,role) values('${a}','${owner}','restaurant_owner'),('${a}','${staff}','restaurant_staff'),('${b}','${other}','restaurant_owner'),('${a}','${suspended}','restaurant_owner'),('${c}','${owner}','restaurant_owner'),('${a}','${manager}','restaurant_manager');
@@ -96,15 +101,13 @@ describe('RLS real en PostgreSQL aislado (PGlite)', () => {
         ),
       ),
     ).rejects.toThrow(/permission denied/);
-    await asUser(owner, async () => {
-      expect(
-        (
-          await select(
-            `update public.restaurant_modules set enabled=true where module_key='analytics' returning id`,
-          )
-        ).rows,
-      ).toHaveLength(0);
-    });
+    await expect(
+      asUser(owner, () =>
+        select(
+          `update public.restaurant_modules set enabled=true where module_key='analytics' returning id`,
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
   it('no acepta project/dataset compartido entre restaurantes ni JSON de secretos', async () => {
     await expect(
@@ -191,13 +194,11 @@ describe('RLS real en PostgreSQL aislado (PGlite)', () => {
           )
         ).rows,
       ).toHaveLength(1);
-      expect(
-        (
-          await select(
-            `update public.restaurant_modules set enabled=false where restaurant_id='${a}' and module_key='content_management' returning id`,
-          )
-        ).rows,
-      ).toHaveLength(1);
+      await expect(
+        select(
+          `update public.restaurant_modules set enabled=false where restaurant_id='${a}' and module_key='content_management' returning id`,
+        ),
+      ).rejects.toThrow(/permission denied/);
     });
     await db.exec('begin');
     try {

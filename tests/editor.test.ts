@@ -99,7 +99,12 @@ function fakeStore() {
       url: 'https://cdn.sanity.io/images/test/test/safe.jpg',
     })),
   };
-  return { store, docs, mutate, deps: { authorize: vi.fn(async () => store) } };
+  return {
+    store,
+    docs,
+    mutate,
+    deps: { authorize: vi.fn(async () => store), canManageDesign: vi.fn(async () => true) },
+  };
 }
 describe('Edición Sanity (API sustituida; nunca producción)', () => {
   it('listado y lectura resuelven borrador/publicado', async () => {
@@ -897,6 +902,196 @@ describe('temas y composición: contrato visual 2', () => {
         f.deps,
       ),
     ).rejects.toThrow();
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe('Final SaaS editorial/design authorization (no remote writes)', () => {
+  const blocks = [
+    { _key: 'a', _type: 'hero', title: 'Editorial', variant: 'split', alignment: 'left' },
+    { _key: 'b', _type: 'divider', spacing: 'large', line: true },
+  ];
+  function clientFixture() {
+    const f = fakeStore();
+    f.deps.canManageDesign.mockResolvedValue(false);
+    f.docs.set('p', {
+      ...page,
+      blocks: structuredClone(blocks),
+      _id: 'p',
+      _type: 'page',
+      _rev: 'pub',
+    });
+    return f;
+  }
+  const save = (document: Record<string, unknown>) => ({
+    restaurantId,
+    action: 'save',
+    visualContractVersion: 2,
+    kind: 'page',
+    id: 'p',
+    publishedRev: 'pub',
+    draftRev: null,
+    document,
+  });
+  it('client can change text, order and visibility without changing layouts', async () => {
+    const f = clientFixture();
+    await executeContent(
+      save({
+        ...page,
+        title: 'Client text',
+        blocks: [
+          { ...blocks[1], enabled: false },
+          { ...blocks[0], title: 'New content' },
+        ],
+      }),
+      f.deps,
+    );
+    expect(f.mutate).toHaveBeenCalledOnce();
+    const draft = f.docs.get('drafts.p')!;
+    await executeContent(
+      {
+        restaurantId,
+        action: 'publish',
+        kind: 'page',
+        id: 'p',
+        publishedRev: 'pub',
+        draftRev: draft._rev,
+      },
+      f.deps,
+    );
+    expect(f.docs.get('p')?.title).toBe('Client text');
+  });
+  it.each(['variant', 'alignment', 'position', 'width', 'spacing', 'line'])(
+    'client cannot forge visual field %s',
+    async (field) => {
+      const f = clientFixture();
+      await expect(
+        executeContent(
+          save({
+            ...page,
+            blocks: [{ ...blocks[0], [field]: field === 'line' ? false : 'compact' }, blocks[1]],
+          }),
+          f.deps,
+        ),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(f.mutate).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['remove', 'insert', 'type'])(
+    'client cannot change block structure: %s',
+    async (action) => {
+      const f = clientFixture();
+      const next =
+        action === 'remove'
+          ? []
+          : action === 'insert'
+            ? [...blocks, { _key: 'c', _type: 'divider' }]
+            : [{ ...blocks[0], _type: 'cta' }, blocks[1]];
+      await expect(executeContent(save({ ...page, blocks: next }), f.deps)).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(f.mutate).not.toHaveBeenCalled();
+    },
+  );
+  it('client cannot create a designed page or grant itself design capability', async () => {
+    const f = clientFixture();
+    await expect(
+      executeContent(
+        {
+          restaurantId,
+          action: 'create',
+          kind: 'page',
+          manageDesign: true,
+          permissions: { manageDesign: true },
+          document: { ...page, blocks },
+        },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it.each(['publish', 'restore', 'discard'])(
+    'client cannot %s a privileged design draft',
+    async (action) => {
+      const f = clientFixture();
+      if (action === 'restore') f.docs.get('p')!.status = 'hidden';
+      f.docs.set('drafts.p', {
+        ...f.docs.get('p')!,
+        _id: 'drafts.p',
+        _rev: 'draft',
+        blocks: [{ ...blocks[0], variant: 'cover' }, blocks[1]],
+      });
+      await expect(
+        executeContent(
+          { restaurantId, action, kind: 'page', id: 'p', publishedRev: 'pub', draftRev: 'draft' },
+          f.deps,
+        ),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(f.mutate).not.toHaveBeenCalled();
+    },
+  );
+  it('design capability is fail-closed, and tenant authorization precedes capability lookup', async () => {
+    const f = clientFixture();
+    await expect(
+      executeContent(save({ ...page, blocks: [] }), { authorize: async () => f.store }),
+    ).rejects.toMatchObject({ status: 403 });
+    f.deps.authorize.mockRejectedValue(new HttpError(403, 'Wrong tenant'));
+    await expect(executeContent(save({ ...page, blocks }), f.deps)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(f.deps.canManageDesign).not.toHaveBeenCalled();
+    expect(f.mutate).not.toHaveBeenCalled();
+  });
+  it('Super Admin retains design configuration after normal tenant authorization', async () => {
+    const f = clientFixture();
+    f.deps.canManageDesign.mockResolvedValue(true);
+    const result = await executeContent(
+      save({ ...page, blocks: [{ ...blocks[0], variant: 'cover' }, blocks[1]] }),
+      f.deps,
+    );
+    expect(result).toMatchObject({ permissions: { manageDesign: true, designDraft: true } });
+  });
+  it.each(['theme', 'logo'])('client cannot replace or unset global branding %s', async (field) => {
+    const f = clientFixture();
+    const settings = {
+      name: 'Restaurant',
+      tagline: 'Tagline',
+      concept: 'Concept',
+      address: 'Address',
+      email: 'test@example.test',
+      phone: '000',
+      isFictional: true,
+      hours: [{ days: 'Monday', time: '12:00' }],
+      theme: { preset: 'modern' },
+      logo: {
+        _type: 'editorialImage',
+        alt: 'Logo',
+        asset: { _type: 'reference', _ref: 'image-logo' },
+      },
+    };
+    f.docs.set('restaurant-settings', {
+      ...settings,
+      _type: 'settings',
+      _id: 'restaurant-settings',
+      _rev: 's',
+    });
+    const changed: Record<string, unknown> = { ...settings };
+    delete changed[field];
+    await expect(
+      executeContent(
+        {
+          restaurantId,
+          action: 'save',
+          visualContractVersion: 2,
+          kind: 'settings',
+          id: 'restaurant-settings',
+          publishedRev: 's',
+          draftRev: null,
+          document: changed,
+        },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
     expect(f.mutate).not.toHaveBeenCalled();
   });
 });
