@@ -457,4 +457,51 @@ test('client Admin has editorial controls but cannot change design, modules or t
   await page.goto('/settings');
   await expect(page.getByText('Instalada: restaurant-editorial · 0.3.0')).toBeVisible();
   await expect(page.getByLabel('Versión aprobada del template')).toHaveCount(0);
+  await page.goto('/administration');
+  await expect(page.getByRole('alert')).toHaveText('Requiere Super Admin.');
+  await expect(page.getByRole('heading', { name: 'Nuevo proyecto Sanity' })).toHaveCount(0);
+});
+
+test('Super Admin inicia Sanity con contrato mínimo y sin credenciales del navegador', async ({
+  page,
+}) => {
+  await mockedWorkspace(page, true);
+  await page.route(
+    `https://${project}.supabase.co/functions/v1/sanity-provisioning`,
+    async (route) => {
+      const request = route.request().postDataJSON();
+      expect(request).toMatchObject({
+        operation: 'start',
+        payload: { name: 'Casa Ensayo', slug: 'casa-ensayo', dataset: 'production' },
+      });
+      expect(request.payload.request_id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(JSON.stringify(request)).not.toMatch(/token|organization|template|domain|email/i);
+      await route.fulfill({
+        json: {
+          request_id: request.payload.request_id,
+          restaurant_id: restaurantId,
+          integration_id: '00000000-0000-4000-8000-000000000404',
+          name: 'Casa Ensayo',
+          slug: 'casa-ensayo',
+          project_id: 'r1234567890abcde',
+          dataset: 'production',
+          status: 'succeeded',
+          stage: 'completed',
+          attempt_count: 1,
+          retryable: false,
+          error_code: null,
+          created_at: '2026-11-01T00:00:00Z',
+          updated_at: '2026-11-01T00:00:01Z',
+        },
+      });
+    },
+  );
+  await page.goto('/administration');
+  await page.getByLabel('Nombre del restaurante').fill('Casa Ensayo');
+  await page.getByLabel('Slug interno').fill('casa-ensayo');
+  await page.getByRole('button', { name: 'Crear base editorial' }).click();
+  await expect(page.getByText('Estado: succeeded')).toBeVisible();
+  await expect(page.getByText(/Proyecto: r1234567890abcde/)).toBeVisible();
 });

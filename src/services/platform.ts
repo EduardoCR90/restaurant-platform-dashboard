@@ -4,6 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { roles, moduleKey } from '../../shared/access';
 import {
+  sanityProvisioningJob,
+  sanityProvisioningRequest,
+  type SanityProvisioningRequest,
+} from '../../shared/sanity-provisioning';
+import {
   snapshotSchema,
   contentItemSchema,
   discardResultSchema,
@@ -187,6 +192,12 @@ export const contentApi = {
 };
 export async function adminOperation(input: unknown) {
   return invoke('platform-admin', input);
+}
+
+export async function provisionSanity(input: SanityProvisioningRequest) {
+  return sanityProvisioningJob.parse(
+    await invoke('sanity-provisioning', sanityProvisioningRequest.parse(input)),
+  );
 }
 
 export async function listPublications(restaurantId: string, documentId?: string) {

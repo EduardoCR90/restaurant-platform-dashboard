@@ -1,4 +1,4 @@
-name: Configure template governance (manual)
+name: Configure platform governance (manual)
 on:
   workflow_call:
     inputs:
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Inspect or apply reviewed metadata and definitive SaaS permission policy
+        description: Inspect or apply reviewed platform metadata, permissions and provisioning schema
         type: choice
         options: [inspect, apply]
         default: inspect
@@ -39,9 +39,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx vitest run tests/template-governance-db.test.ts tests/editor.test.ts tests/sanity-production-policy.test.ts
+      - run: npx vitest run tests/template-governance-db.test.ts tests/sanity-provisioning-db.test.ts tests/editor.test.ts tests/sanity-production-policy.test.ts
       - run: node --test scripts/configure-template-governance.test.mjs
-      - name: Apply additive metadata and restrict module activation without changing values
+      - name: Apply reviewed additive platform metadata and permission policy
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           GOVERNANCE_OPERATION: ${{ inputs.operation }}

@@ -45,7 +45,7 @@ jobs:
       - name: Validate Edge imports and types
         run: npm run check:edge
       - name: Verify runtime keys and scoped Sanity write protection
-        run: npx vitest run tests/edge-environment.test.ts tests/sanity-write-safety.test.ts tests/sanity-production-policy.test.ts tests/editor.test.ts tests/publication-mutation.test.ts tests/github-oidc.test.ts
+        run: npx vitest run tests/edge-environment.test.ts tests/integration-credentials.test.ts tests/sanity-provisioning.test.ts tests/sanity-provisioning-db.test.ts tests/sanity-write-safety.test.ts tests/sanity-production-policy.test.ts tests/editor.test.ts tests/publication-mutation.test.ts tests/github-oidc.test.ts
       - name: Check CLI source packages against localhost only
         run: node scripts/check-edge-package.mjs
       - name: Deploy content only
@@ -62,12 +62,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy publications --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
+      - name: Deploy Sanity provisioning only
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy sanity-provisioning --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
       - name: Record scope of completed commands
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          Se completaron los comandos para **content**, **platform-admin** y **publications** en `wanrzgumoamryuybmopa`.
+          Se completaron los comandos para **content**, **platform-admin**, **publications** y **sanity-provisioning** en `wanrzgumoamryuybmopa`.
           CLI: `2.122.0`; `verify_jwt=false`; import map: `supabase/functions/deno.json`.
-          Las peticiones de usuario verifican la sesión con `auth.getUser`; los informes de Astro exigen OIDC firmado de un workflow main registrado. Las escrituras Sanity admiten `staging` y únicamente la tupla de Salitre configurada explícitamente para `hfa8zkyw/production`.
+          Las peticiones de usuario verifican la sesión con `auth.getUser`; el aprovisionador exige además Super Admin activo en Edge y SQL. Los informes de Astro exigen OIDC firmado de un workflow main registrado. Las escrituras Sanity admiten `staging` y únicamente la tupla de Salitre configurada explícitamente para `hfa8zkyw/production`; las integraciones nuevas usan credenciales cifradas por proyecto.
           No se ejecutaron migraciones, bootstrap ni despliegues de webs.
-          Revisa ambas funciones en Supabase y valida el acceso desde el dashboard; el éxito de la CLI no acredita por sí solo el recorrido remoto completo.
+          Revisa las cuatro funciones en Supabase y valida el acceso desde el dashboard; el éxito de la CLI no acredita por sí solo el recorrido remoto completo.
           SUMMARY

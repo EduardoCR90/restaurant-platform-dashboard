@@ -17,8 +17,24 @@ export async function configureTemplateGovernance(operation, api) {
     values.every((v) => v === true) || values.every((v) => v === false),
     'Partial governance schema; stop for review',
   );
+  const provisioningQuery =
+    "select to_regclass('public.sanity_provisioning_jobs') is not null as jobs, to_regclass('public.integration_credentials') is not null as credentials, to_regprocedure('public.admin_claim_sanity_provisioning(uuid,text,jsonb)') is not null as claim_rpc, to_regprocedure('public.admin_get_sanity_provisioning(uuid,uuid)') is not null as get_rpc, to_regprocedure('public.admin_checkpoint_sanity_provisioning(uuid,uuid,uuid,text)') is not null as checkpoint_rpc, to_regprocedure('public.admin_complete_sanity_provisioning(uuid,uuid,uuid,text,jsonb)') is not null as complete_rpc, to_regprocedure('public.admin_fail_sanity_provisioning(uuid,uuid,uuid,text,boolean,boolean)') is not null as fail_rpc";
+  const provisioning = await api('database/query', {
+    method: 'POST',
+    body: { query: provisioningQuery, read_only: true },
+  });
+  const provisioningValues = Object.values(provisioning[0]);
+  assert.equal(provisioningValues.length, 7);
+  assert.ok(
+    provisioningValues.every((v) => v === true) || provisioningValues.every((v) => v === false),
+    'Partial provisioning schema; stop for review',
+  );
   if (operation === 'inspect')
-    return { status: 'inspected-read-only', schemaReady: values.every(Boolean) };
+    return {
+      status: 'inspected-read-only',
+      schemaReady: values.every(Boolean),
+      provisioningReady: provisioningValues.every(Boolean),
+    };
   const catalog = JSON.parse(
     await readFile(new URL('../ops/template-releases.json', import.meta.url), 'utf8'),
   );
@@ -43,6 +59,17 @@ export async function configureTemplateGovernance(operation, api) {
       },
     });
 
+  if (provisioningValues.every((v) => v === false))
+    await api('database/query', {
+      method: 'POST',
+      body: {
+        query: await readFile(
+          new URL('../supabase/migrations/202611010002_sanity_provisioning.sql', import.meta.url),
+          'utf8',
+        ),
+      },
+    });
+
   // Catalog is reviewed code, not HTTP input. Refuse conflicting immutable releases.
   const rows = catalog
     .map(
@@ -58,13 +85,17 @@ export async function configureTemplateGovernance(operation, api) {
     method: 'POST',
     body: {
       query:
-        "select not has_column_privilege('authenticated','public.restaurant_modules','enabled','UPDATE') as modules_protected, has_function_privilege('service_role','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') as admin_protected",
+        "select not has_column_privilege('authenticated','public.restaurant_modules','enabled','UPDATE') as modules_protected, has_function_privilege('service_role','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') as admin_protected, has_function_privilege('service_role','public.admin_claim_sanity_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_sanity_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.integration_credentials','SELECT') as provisioning_protected",
       read_only: true,
     },
   });
   assert.equal(checks[0]?.modules_protected, true);
   assert.equal(checks[0]?.admin_protected, true);
-  return { status: 'metadata-and-permission-policy-ready', approvedReleases: catalog.length };
+  assert.equal(checks[0]?.provisioning_protected, true);
+  return {
+    status: 'metadata-permission-and-provisioning-policy-ready',
+    approvedReleases: catalog.length,
+  };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

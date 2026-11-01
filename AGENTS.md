@@ -5,7 +5,7 @@
 - Mantener TypeScript strict. Presentación en features/components; red solo en services; validación compartida en shared; autorización real en SQL/Edge.
 - Todas las tablas de restaurante deben tener RLS, índices y pruebas de aislamiento. Nunca aceptar un ID, una preferencia local o un checkbox CMS como autorización.
 - Privilegios globales solo app_private.platform_administrators. No concederlos desde registro público, metadatos Auth o miembros de restaurante.
-- Toda escritura Sanity pasa por el adaptador HTTP. Staging sigue permitido; production solo para la tupla exacta restaurante/integración/hfa8zkyw/production de SALITRE_PRODUCTION_WRITE_TARGET, resuelta y contrastada con Supabase. Nunca usar un booleano global, datos del cliente o un bypass de administrador.
+- Toda escritura Sanity pasa por el adaptador HTTP. Staging sigue permitido; production solo para la tupla exacta de Salitre configurada o para una integración aprovisionada cuya credencial cifrada se resuelva en servidor y coincida con restaurante/integración/proyecto/dataset. Nunca usar un booleano global, datos del cliente o un bypass de administrador.
 - Los tokens de Sanity son secretos backend por integración. Ningún secreto con VITE_. No imprimir respuestas Auth, cabeceras o variables de entorno.
 - Mantener integración exclusiva por proyecto/dataset. Compartir un dataset entre restaurantes requiere un modelo de autorización distinto y una migración revisada.
 - Contratos de Sanity: fuente de verdad studio-salitre-restaurant/schemaTypes (iteración 1: ver docs/editorial-compatibility.md y la fixture común). Preservar campos desconocidos existentes al guardar. No createOrReplace ni borrar documentos publicados.
@@ -22,3 +22,5 @@
 - Fase 5 iteración 2: `visual-contract.lock.json` fija la copia portable del contrato del template v0.2.0. No divergir ni materializar defaults. Conservar negociación de capacidad visual y guarda de clientes antiguos; ver docs/visual-themes.md.
 
 - Fase 5 cerrada: plantilla/versiones y módulos son exclusivos de Super Admin. Preservar guardas editoriales en save/create/publish/restore/discard y versiones instaladas solo tras ready+succeeded OIDC coincidentes. Contrato portable y catálogo inmutables; ver docs/template-governance.md. No ejecutar el aprovisionamiento hasta fase 6.
+
+- Fase 6.1: el aprovisionamiento Sanity es exclusivo de Super Admin y usa trabajos idempotentes, leases y credenciales AES-GCM. No reintentar automáticamente tokens ambiguos, exponer respuestas del proveedor ni activar el restaurante. Salitre sigue en `SANITY_TOKENS`; ver docs/sanity-provisioning.md.

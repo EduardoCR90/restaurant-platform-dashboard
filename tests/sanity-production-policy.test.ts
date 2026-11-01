@@ -102,6 +102,49 @@ describe('Excepción de production exacta y configurada en servidor', () => {
     );
   });
 });
+describe('Production de integraciones aprovisionadas y cifradas', () => {
+  const managedTarget = {
+    restaurantId,
+    integrationId,
+    projectId: 'r1234567890abcde',
+    dataset: 'production',
+  };
+  const evidence = { ...managedTarget, keyVersion: 'v1' };
+  it('admite solo la evidencia backend de la misma integración', () => {
+    expect(() => assertSanityWriteTarget(managedTarget, undefined, evidence)).not.toThrow();
+    for (const changed of [
+      { restaurantId: other },
+      { integrationId: other },
+      { projectId: 'r2234567890abcde' },
+      { dataset: 'staging' },
+      { keyVersion: '' },
+      { allowProduction: true },
+    ])
+      expect(() =>
+        assertSanityWriteTarget(managedTarget, undefined, { ...evidence, ...changed }),
+      ).toThrow();
+  });
+  it('aplica la misma guarda antes de mutaciones y assets', async () => {
+    const network = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            results: [],
+            document: { _id: 'image-fixture', url: 'https://example.test/image.jpg' },
+          }),
+        ),
+    );
+    vi.stubGlobal('fetch', network);
+    const store = sanityStore(managedTarget.projectId, 'production', 'encrypted-test-token', {
+      restaurantId,
+      integrationId,
+      managedProduction: evidence,
+    });
+    await store.mutate([]);
+    await store.upload(new Uint8Array([255, 216, 255]), 'image/jpeg');
+    expect(network).toHaveBeenCalledTimes(2);
+  });
+});
 describe('Resolución autorizada y fresca desde Supabase', () => {
   function deps() {
     return {

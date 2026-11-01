@@ -17,7 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/content/index.ts supabase/functions/platform-admin/index.ts supabase/functions/publications/index.ts"
+    "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/content/index.ts supabase/functions/platform-admin/index.ts supabase/functions/publications/index.ts supabase/functions/sanity-provisioning/index.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.0",
