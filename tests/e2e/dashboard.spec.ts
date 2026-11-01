@@ -42,6 +42,7 @@ async function mockedWorkspace(page: Page) {
   );
   let snapshot = {
     id: 'page1',
+    visualContractVersion: 2 as const,
     kind: 'page',
     draftRev: null as string | null,
     publishedRev: 'published-1' as string | null,
@@ -141,6 +142,7 @@ async function mockedWorkspace(page: Page) {
       if (request.action === 'create') {
         snapshot = {
           id: 'new-generated',
+          visualContractVersion: 2,
           kind: 'page',
           draftRev: 'new-draft',
           publishedRev: null,
@@ -290,4 +292,90 @@ test('avisa al navegar y cambiar restaurante; cancelar conserva campos, guardar 
   await expect(
     page.getByRole('heading', { name: 'Este espacio no está disponible.' }),
   ).toBeVisible();
+});
+
+test('preset personalizado se guarda como borrador y se publica sin cambiar permisos (API de ensayo)', async ({
+  page,
+}) => {
+  await mockedWorkspace(page);
+  let saved = false,
+    published = false;
+  let snapshot = {
+    id: 'restaurant-settings',
+    kind: 'settings',
+    visualContractVersion: 2,
+    draftRev: null as string | null,
+    publishedRev: 'settings-pub',
+    document: {
+      name: 'Restaurante de prueba',
+      tagline: 'Firma',
+      concept: 'Concepto',
+      address: 'Dirección de prueba',
+      email: 'contact@example.test',
+      phone: '000',
+      isFictional: true,
+      hours: [{ _key: 'h', days: 'Lunes', time: '12:00' }],
+    },
+  };
+  await page.route(`https://${project}.supabase.co/functions/v1/content`, async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.kind !== 'settings') {
+      await route.fallback();
+      return;
+    }
+    if (request.action === 'save') {
+      expect(request.visualContractVersion).toBe(2);
+      expect(request.document.theme).toEqual({ preset: 'modern' });
+      snapshot = { ...snapshot, draftRev: 'settings-draft', document: request.document };
+      saved = true;
+    }
+    if (request.action === 'publish') {
+      expect(request.draftRev).toBe('settings-draft');
+      snapshot = { ...snapshot, draftRev: null, publishedRev: 'settings-pub2' };
+      published = true;
+    }
+    await route.fulfill({ json: snapshot });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/content/settings/restaurant-settings');
+  await page.getByLabel('Preset visual').selectOption('modern');
+  await expect(page.getByLabel('Vista previa orientativa del tema')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+    true,
+  );
+  await page.getByRole('button', { name: 'Guardar borrador', exact: true }).click();
+  await expect(page.getByText('Borrador guardado. Todavía no se ha publicado.')).toBeVisible();
+  expect(saved).toBe(true);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Publicar cambios ↗' }).click();
+  await expect(
+    page.getByText(
+      'Contenido publicado en Sanity. La web cambiará al finalizar su reconstrucción.',
+    ),
+  ).toBeVisible();
+  expect(published).toBe(true);
+  await page.screenshot({ path: 'test-results/theme-modern-mobile.png', fullPage: true });
+});
+
+test('composición permite reordenar y ocultar sin borrar los bloques (API de ensayo)', async ({
+  page,
+}) => {
+  await mockedWorkspace(page);
+  await page.goto('/content/page/page1');
+  await page.getByLabel('Tipo de bloque').selectOption('divider');
+  await page.getByRole('button', { name: 'Añadir bloque', exact: true }).click();
+  await page.getByRole('button', { name: 'Añadir bloque', exact: true }).click();
+  await page.getByRole('button', { name: 'Ocultar bloque 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Bajar bloque 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mostrar bloque 2', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar borrador', exact: true }).click();
+  await expect(page.getByText('Borrador guardado. Todavía no se ha publicado.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Mostrar bloque 2', exact: true })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('button', { name: 'Quitar bloque 1', exact: true }).click();
+  await expect(page.locator('.block-panel')).toHaveCount(2);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Quitar bloque 1', exact: true }).click();
+  await expect(page.locator('.block-panel')).toHaveCount(1);
 });

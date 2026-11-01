@@ -828,3 +828,37 @@ select {
 .publication-status p {
   margin-block: 0.35rem 0.75rem;
 }
+
+.theme-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+}
+.theme-preview {
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  margin-block: 1rem;
+}
+.theme-preview strong {
+  font-size: 1.75rem;
+}
+.theme-preview span {
+  display: inline-block;
+  padding: 0.75rem 1rem;
+  margin-block: 1rem;
+}
+.theme-preview small {
+  display: block;
+}
+.theme-editor details {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.theme-editor summary {
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+.theme-editor input[type='color'] {
+  min-height: 44px;
+  padding: 0.25rem;
+}

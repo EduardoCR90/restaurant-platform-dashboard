@@ -1,3 +1,4 @@
+import { sectionFlagsSchema } from './visual.ts';
 import { z } from 'zod';
 export const headingSchema = z
   .object({
@@ -14,6 +15,7 @@ export function editorialSchemas(link: z.ZodType<{ label: string; href: string }
   const linkSchema = link;
   const composition = z.object({
     _type: z.literal('pageComposition').optional(),
+    sections: sectionFlagsSchema.nullish(),
     hero: z
       .object({
         caption: z.string().trim().min(1).max(20000).nullish(),

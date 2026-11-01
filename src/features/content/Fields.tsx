@@ -1,3 +1,4 @@
+import { ThemeEditor } from './ThemeEditor';
 import { useUnsavedChanges } from '../../app/UnsavedChanges';
 import { useId, useState, useRef, useEffect } from 'react';
 import type { JsonRecord } from '../../../shared/content';
@@ -322,6 +323,7 @@ function FieldInput({
 }) {
   const id = useId();
   const data = asRecord(value);
+  if (field.type === 'visual') return <ThemeEditor value={value} onChange={onChange} />;
   if (field.type === 'object')
     return (
       <fieldset>
@@ -509,13 +511,17 @@ function FieldInput({
         {field.label}
         <select
           value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) =>
+            onChange(field.allowInherit && !e.target.value ? undefined : e.target.value)
+          }
         >
-          <option value="" disabled>
-            Selecciona
+          <option value="" disabled={!field.allowInherit}>
+            {field.allowInherit ? 'Heredar del preset' : 'Selecciona'}
           </option>
           {field.options?.map((option) => (
-            <option key={option}>{option}</option>
+            <option key={option} value={option}>
+              {field.optionLabels?.[option] || option}
+            </option>
           ))}
         </select>
       </label>

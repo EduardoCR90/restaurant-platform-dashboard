@@ -1,3 +1,4 @@
+import { storedThemeSchema, variantOptions } from './visual.ts';
 import { z } from 'zod';
 import { editorialSchemas } from './editorial.ts';
 const text = z.string().trim().min(1).max(20000);
@@ -58,6 +59,7 @@ export const link = z.object({
 const { composition, editorial } = editorialSchemas(link);
 const common = {
   _key: key,
+  enabled: z.boolean().optional(),
   title: z.string().max(2000).optional(),
   variant: z.enum(['editorial', 'compact']).optional(),
   alignment: z.enum(['left', 'center']).optional(),
@@ -93,6 +95,7 @@ export const blockSchema = z.discriminatedUnion('_type', [
   z.object({
     ...common,
     _type: z.literal('hero'),
+    variant: z.enum(variantOptions.hero).optional(),
     title: text,
     subtitle: z.string().optional(),
     image: image.nullish(),
@@ -112,16 +115,24 @@ export const blockSchema = z.discriminatedUnion('_type', [
     position: z.enum(['left', 'right']).optional(),
     cta: link.nullish(),
   }),
-  z.object({ ...common, _type: z.literal('galleryBlock'), images: z.array(image).min(1).max(100) }),
+  z.object({
+    ...common,
+    _type: z.literal('galleryBlock'),
+    variant: z.enum(variantOptions.gallery).optional(),
+    images: z.array(image).min(1).max(100),
+  }),
   z.object({
     ...common,
     _type: z.literal('menuSection'),
+    featuredOnly: z.boolean().optional(),
+    variant: z.enum(variantOptions.menu).optional(),
     categories: z.array(reference).optional(),
     dishes: z.array(reference).optional(),
   }),
   z.object({
     ...common,
     _type: z.literal('cards'),
+    variant: z.enum(variantOptions.featured).optional(),
     items: z
       .array(
         z.object({
@@ -139,6 +150,7 @@ export const blockSchema = z.discriminatedUnion('_type', [
   z.object({
     ...common,
     _type: z.literal('cta'),
+    variant: z.enum(variantOptions.cta).optional(),
     title: text,
     description: z.string().optional(),
     cta: link,
@@ -222,25 +234,7 @@ const seo = z.object({
   description: text.max(180),
   image: image.nullish(),
 });
-const theme = z.object({
-  _type: z.literal('restaurantTheme').optional(),
-  name: z.literal('salitre').optional(),
-  paper: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i)
-    .optional(),
-  ink: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i)
-    .optional(),
-  accent: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i)
-    .optional(),
-  font: z.enum(['editorial', 'sans']).optional(),
-  button: z.enum(['solid', 'outline']).optional(),
-  cards: z.enum(['editorial', 'compact']).optional(),
-});
+const theme = storedThemeSchema;
 export const documentSchemas = {
   page: z.object({
     composition: composition.nullish(),
@@ -377,12 +371,14 @@ export const contentRequest = z.discriminatedUnion('action', [
   z.object({
     restaurantId: z.uuid(),
     action: z.literal('create'),
+    visualContractVersion: z.literal(2).optional(),
     kind: kindSchema,
     document: z.record(z.string(), z.unknown()),
   }),
   z.object({
     restaurantId: z.uuid(),
     action: z.literal('save'),
+    visualContractVersion: z.literal(2).optional(),
     kind: kindSchema,
     id: documentId,
     draftRev: revision,
@@ -407,6 +403,7 @@ export const contentRequest = z.discriminatedUnion('action', [
 ]);
 export type ContentRequest = z.infer<typeof contentRequest>;
 export type Snapshot = {
+  visualContractVersion?: 2;
   id: string;
   kind: Kind;
   draftRev: string | null;
@@ -424,6 +421,7 @@ export type ContentItem = {
 };
 
 export const snapshotSchema = z.object({
+  visualContractVersion: z.literal(2).optional(),
   publicationId: z.uuid().optional(),
   id: documentId,
   kind: kindSchema,

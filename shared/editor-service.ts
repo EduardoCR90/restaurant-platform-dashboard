@@ -1,3 +1,4 @@
+import { managedVisualKeys } from './visual.ts';
 import { isWithdrawn, canWithdraw } from './editorial-state.ts';
 import {
   contentRequest,
@@ -73,6 +74,7 @@ function snapshot(kind: Kind, id: string, v: Awaited<ReturnType<typeof versions>
   return {
     id,
     kind,
+    visualContractVersion: 2,
     draftRev: v.draft?._rev ?? null,
     publishedRev: v.published?._rev ?? null,
     withdrawn: isWithdrawn(kind, v.published),
@@ -88,6 +90,50 @@ function mergeFields(original: JsonRecord, kind: Kind, fields: JsonRecord): Json
   for (const key of Object.keys(documentSchemas[kind].shape))
     if (!(key in fields)) delete merged[key];
   return merged;
+}
+function requiresVisualClient(kind: Kind, original: JsonRecord | undefined): boolean {
+  if (!original) return false;
+  if (kind === 'settings' && original.theme && typeof original.theme === 'object') {
+    const legacy = ['_type', 'name', 'paper', 'ink', 'accent', 'font', 'button', 'cards'];
+    return Object.keys(original.theme).some(
+      (key) => managedVisualKeys.includes(key) && !legacy.includes(key),
+    );
+  }
+  if (kind === 'page') {
+    if ((original.composition as JsonRecord | undefined)?.sections) return true;
+    return (
+      Array.isArray(original.blocks) &&
+      original.blocks.some(
+        (block) =>
+          block &&
+          typeof block === 'object' &&
+          ('enabled' in block ||
+            'featuredOnly' in block ||
+            ('variant' in block && !['editorial', 'compact', undefined].includes(block.variant))),
+      )
+    );
+  }
+  return false;
+}
+function preserveVisualExtensions(
+  kind: Kind,
+  fields: JsonRecord,
+  original: JsonRecord | undefined,
+) {
+  if (
+    kind !== 'settings' ||
+    !fields.theme ||
+    typeof fields.theme !== 'object' ||
+    !original?.theme ||
+    typeof original.theme !== 'object'
+  )
+    return;
+  const unmanaged = Object.fromEntries(
+    Object.entries(original.theme as JsonRecord).filter(
+      ([key]) => !managedVisualKeys.includes(key) && key !== '_type',
+    ),
+  );
+  fields.theme = { ...unmanaged, ...(fields.theme as JsonRecord) };
 }
 function unsetFields(kind: Kind, fields: JsonRecord) {
   return Object.keys(documentSchemas[kind].shape).filter((key) => !(key in fields));
@@ -349,6 +395,7 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
       throw new HttpError(409, 'El contenido no está retirado');
     const restored = req.kind === 'page' ? { status: 'published' } : { visible: true };
     const fields = validateContent(req.kind, { ...clean(current.draft || published), ...restored });
+    preserveVisualExtensions(req.kind, fields, current.draft || published);
     if (req.kind === 'page') protectCorePageIdentity(published, fields);
     await validateReferences(store, req.kind, fields, req.id);
     await preventLinksToWithdrawnPages(store, req.kind, fields, req.id);
@@ -371,8 +418,18 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
       ]);
     return snapshot(req.kind, req.id, await versions(store, req.kind, req.id));
   }
+  if (
+    req.action === 'save' &&
+    req.visualContractVersion !== 2 &&
+    requiresVisualClient(req.kind, current.draft || current.published)
+  )
+    throw new HttpError(
+      409,
+      'Recarga el dashboard para editar esta configuración visual sin perder campos.',
+    );
   if (req.action === 'save') {
     const fields = validateContent(req.kind, req.document);
+    preserveVisualExtensions(req.kind, fields, current.draft || current.published);
     await validateReferences(store, req.kind, fields, req.id);
     if (current.draft) {
       await store.mutate([
@@ -407,6 +464,7 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
   const draft = current.draft;
   if (!draft) throw new HttpError(409, 'No hay borrador para publicar');
   const fields = validateContent(req.kind, clean(draft));
+  preserveVisualExtensions(req.kind, fields, draft);
   await validateReferences(store, req.kind, fields, req.id);
   const pub = current.published;
   if (req.kind === 'page') protectCorePageIdentity(pub, fields);

@@ -26,8 +26,10 @@ const expected = {
     'shared/editorial-state.ts',
     'shared/content.ts',
     'shared/editorial.ts',
+    'shared/visual.ts',
   ],
   publications: [
+    'shared/visual.ts',
     'supabase/functions/publications/index.ts',
     'supabase/functions/_shared/publications.ts',
     'supabase/functions/_shared/auth.ts',
@@ -47,6 +49,7 @@ const expected = {
     'shared/editorial-state.ts',
     'shared/content.ts',
     'shared/editorial.ts',
+    'shared/visual.ts',
   ],
 };
 const uploads = new Map();

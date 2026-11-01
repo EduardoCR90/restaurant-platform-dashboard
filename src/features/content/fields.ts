@@ -4,6 +4,7 @@ export type Field = {
   name: string;
   label: string;
   type:
+    | 'visual'
     | 'text'
     | 'textarea'
     | 'number'
@@ -18,6 +19,8 @@ export type Field = {
     | 'richtext'
     | 'object';
   options?: readonly string[];
+  allowInherit?: boolean;
+  optionLabels?: Record<string, string>;
   fields?: Field[];
   initial?: Record<string, unknown>;
   target?: 'category' | 'dish';
@@ -124,19 +127,7 @@ export const fields: Record<Kind, Field[]> = {
       ],
     },
     { name: 'logo', label: 'Logo', type: 'image' },
-    {
-      name: 'theme',
-      label: 'Identidad visual',
-      type: 'object',
-      fields: [
-        { name: 'paper', label: 'Fondo (#RRGGBB)', type: 'text' },
-        { name: 'ink', label: 'Texto (#RRGGBB)', type: 'text' },
-        { name: 'accent', label: 'Acento (#RRGGBB)', type: 'text' },
-        { name: 'font', label: 'Titulares', type: 'select', options: ['editorial', 'sans'] },
-        { name: 'button', label: 'Botones', type: 'select', options: ['solid', 'outline'] },
-        { name: 'cards', label: 'Composición', type: 'select', options: ['editorial', 'compact'] },
-      ],
-    },
+    { name: 'theme', label: 'Identidad visual', type: 'visual' },
     { name: 'socialImage', label: 'Imagen social predeterminada', type: 'image' },
     editorialField,
   ],
@@ -189,6 +180,7 @@ export const blockFields: Record<Block['_type'], Field[]> = {
   ],
   menuSection: [
     title,
+    { name: 'featuredOnly', label: 'Solo platos destacados disponibles', type: 'boolean' },
     {
       name: 'categories',
       label: 'Categorías (vacío: todas)',
@@ -284,8 +276,13 @@ export function normalizeDocument(
   };
 }
 
-export function contentFields(kind: Kind, document: Record<string, unknown>): Field[] {
-  if (kind !== 'page') return fields[kind];
+export function contentFields(
+  kind: Kind,
+  document: Record<string, unknown>,
+  visualEnabled = true,
+): Field[] {
+  if (kind !== 'page')
+    return fields[kind].filter((field) => visualEnabled || field.type !== 'visual');
   const slug = (document.slug as { current?: unknown } | undefined)?.current;
   const sections = compositionSections(slug);
   const hasBlocks = Array.isArray(document.blocks) && document.blocks.length > 0;
