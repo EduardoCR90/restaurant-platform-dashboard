@@ -27,7 +27,10 @@ export async function limitedJson(request: Request) {
     throw new HttpError(400, 'JSON inválido');
   }
 }
-export function handler(fn: (request: Request) => Promise<unknown>) {
+export function handler(
+  fn: (request: Request) => Promise<unknown>,
+  options: { serverToServer?: boolean } = {},
+) {
   return async (request: Request) => {
     const origin = request.headers.get('Origin') || '';
     const allowed = (Deno.env.get('ALLOWED_ORIGINS') || '')
@@ -47,7 +50,7 @@ export function handler(fn: (request: Request) => Promise<unknown>) {
           }
         : {}),
     };
-    if (!allowed.includes(origin))
+    if (!allowed.includes(origin) && !(options.serverToServer && !origin))
       return new Response(JSON.stringify({ error: 'Origen no permitido' }), {
         status: 403,
         headers,

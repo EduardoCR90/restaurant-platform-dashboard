@@ -82,6 +82,7 @@ async function mockedWorkspace(page: Page) {
       body = [{ restaurant_id: restaurantId, module_key: 'content_management', enabled: true }];
     else if (url.pathname.includes('/rest/v1/restaurant_integrations')) body = [];
     else if (url.pathname.includes('/rpc/is_platform_admin')) body = false;
+    else if (url.pathname.includes('/functions/v1/publications')) body = [];
     else if (url.pathname.includes('/functions/v1/content')) {
       const request = route.request().postDataJSON() as {
         action: string;

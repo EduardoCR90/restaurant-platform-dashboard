@@ -45,3 +45,7 @@ Los tests de RLS ejecutan el SQL real en PGlite con roles PostgreSQL de ensayo y
 Configura rate limits, MFA para administradores, SMTP, rotación de secretos, permisos mínimos Sanity, backups y monitorización con tu política operativa antes de producción. Los secretos nunca se leen para diagnosticar su valor. No se han configurado sistemas externos de auditoría o alertas en esta fase. La auditoría administrativa no equivale todavía a una auditoría editorial por usuario en Sanity: el token de servicio aparece como actor en su historial.
 
 Las claves del runtime se resuelven en `_shared/environment.ts`. El cliente de usuario solo admite APP_SUPABASE_PUBLISHABLE_KEY, el default publishable automático o anon heredada; nunca una clave privilegiada. Las claves automáticas secret/service_role se resuelven solo tras la comprobación de administrador. Los tests usan valores ficticios y no consultan secretos ni escriben en Sanity.
+
+## Seguimiento de publicaciones
+
+Las nuevas tablas de metadatos tienen RLS. Solo el backend, tras authorize_content o un OIDC GitHub verificado y asociado al destino, puede escribirlas. No se usa service_role para editar Sanity. Configuración de repositorios, revisiones y seguridad del callback: [publicación y despliegues](publication-tracking.md).

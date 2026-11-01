@@ -1,3 +1,4 @@
+import { publicationSchema } from '../../shared/publications';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { roles, moduleKey } from '../../shared/access';
@@ -185,4 +186,14 @@ export const contentApi = {
 };
 export async function adminOperation(input: unknown) {
   return invoke('platform-admin', input);
+}
+
+export async function listPublications(restaurantId: string, documentId?: string) {
+  return z.array(publicationSchema).parse(
+    await invoke('publications', {
+      action: 'list',
+      restaurantId,
+      ...(documentId ? { documentId } : {}),
+    }),
+  );
 }

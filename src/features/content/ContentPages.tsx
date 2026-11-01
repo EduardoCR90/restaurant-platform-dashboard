@@ -1,3 +1,4 @@
+import { PublicationStatus } from '../publications/PublicationStatus';
 import { useUnsavedChanges } from '../../app/UnsavedChanges';
 import { canWithdraw, editorialState, editorialLabels } from '../../../shared/editorial-state';
 import { useEffect, useState, useRef, useCallback, type FormEvent } from 'react';
@@ -107,6 +108,9 @@ export function ContentList() {
       </label>
       <Feedback error={error} />
       {error && <button onClick={() => setRetry(retry + 1)}>Volver a intentar</button>}
+      {ctx.restaurant && (
+        <PublicationStatus key={ctx.restaurant.id} restaurantId={ctx.restaurant.id} />
+      )}
       {loading ? (
         <Loading />
       ) : (
@@ -153,6 +157,8 @@ export function ContentEditor() {
   const [options, setOptions] = useState<ReferenceOptions>({ category: [], dish: [] });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [publicationPending, setPublicationPending] = useState(false);
+  const [publicationRefresh, setPublicationRefresh] = useState(0);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [dirty, setLocalDirty] = useState(false);
@@ -255,7 +261,11 @@ export function ContentEditor() {
       );
     } finally {
       finish();
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setPublicationPending(false);
+        setPublicationRefresh((n) => n + 1);
+      }
     }
   }
   async function publish() {
@@ -267,6 +277,7 @@ export function ContentEditor() {
     )
       return;
     const finish = guard.beginOperation();
+    setPublicationPending(true);
     setBusy(true);
     setError('');
     setMessage('');
@@ -274,6 +285,7 @@ export function ContentEditor() {
       const next = await contentApi.document({
         restaurantId: ctx.restaurant.id,
         action: 'publish',
+        operationId: crypto.randomUUID(),
         kind,
         id: snapshot.id,
         draftRev: snapshot.draftRev,
@@ -289,7 +301,11 @@ export function ContentEditor() {
       if (mounted.current) setError(e instanceof Error ? e.message : 'No se pudo publicar');
     } finally {
       finish();
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setPublicationPending(false);
+        setPublicationRefresh((n) => n + 1);
+      }
     }
   }
   async function editorialAction(action: 'discard' | 'withdraw' | 'restore') {
@@ -316,6 +332,7 @@ export function ContentEditor() {
     }
     if (!snapshot) return;
     const finish = guard.beginOperation();
+    setPublicationPending(action !== 'discard');
     setBusy(true);
     setError('');
     setMessage('');
@@ -330,7 +347,7 @@ export function ContentEditor() {
       const next =
         action === 'discard'
           ? (await contentApi.discard({ ...request, action })).snapshot
-          : await contentApi.document({ ...request, action });
+          : await contentApi.document({ ...request, action, operationId: crypto.randomUUID() });
       if (!mounted.current) return;
       setDirty(false);
       if (!next) {
@@ -353,7 +370,11 @@ export function ContentEditor() {
         setError(e instanceof Error ? e.message : 'No se pudo completar la operación');
     } finally {
       finish();
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setPublicationPending(false);
+        setPublicationRefresh((n) => n + 1);
+      }
     }
   }
   return (
@@ -378,6 +399,15 @@ export function ContentEditor() {
             : 'Nuevo · sin guardar'}
         </span>
       </div>
+      {ctx.restaurant && id !== 'new' && (
+        <PublicationStatus
+          key={`${ctx.restaurant.id}:${id}`}
+          restaurantId={ctx.restaurant.id}
+          documentId={id}
+          publishing={publicationPending}
+          refresh={publicationRefresh}
+        />
+      )}
       {loading ? (
         <Loading />
       ) : (
