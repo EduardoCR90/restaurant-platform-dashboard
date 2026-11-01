@@ -64,3 +64,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Fase 5 · Consolidación y permisos
 
 [Versiones, actualizaciones seguras, permisos definitivos y contrato de fase 6](docs/template-governance.md). La activación de módulos y el diseño son exclusivos de Super Admin.
+
+## Fase 6 · Aprovisionamiento de Sanity
+
+[Servicio, idempotencia, cifrado, recuperación y configuración](docs/sanity-provisioning.md). Solo Super Admin puede crear la base editorial; las pruebas no crean proyectos reales y Salitre permanece intacto.

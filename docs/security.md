@@ -30,7 +30,7 @@ Un usuario puede actualizar su display_name, un owner/manager el name de su rest
 ## Editor y almacenamiento
 
 - Verificación Auth en cada petición Edge y autorización PostgreSQL fresca, con sesión del usuario.
-- Integración exclusiva por proyecto/dataset; el token se resuelve por integration.id en secretos backend. Toda escritura HTTP y subida de assets exige staging o la tupla exacta de Salitre (restaurante, integración, hfa8zkyw, production) configurada en servidor. Véase [la política de iteración 2](salitre-production.md). No hay booleano global ni bypass de administrador.
+- Integración exclusiva por proyecto/dataset; el token se resuelve por integration.id en backend. Toda escritura HTTP y subida de assets exige staging, la tupla exacta de Salitre configurada, o una credencial cifrada aprovisionada cuya evidencia coincide con restaurante/integración/proyecto/production. Véanse [la política de Salitre](salitre-production.md) y el [aprovisionamiento](sanity-provisioning.md). No hay booleano global ni bypass de administrador.
 - Tipos/operaciones permitidos cerrados. No acepta GROQ, endpoints o mutaciones arbitrarias del cliente.
 - Validación Zod y de referencias contra el dataset autorizado. No referencias a borradores ni a documentos de otro tipo.
 - Borradores primero. Guardar no modifica la publicación. Publicar comprueba dos revisiones y usa una transacción; conflicto 409 exige recargar/revisar, sin reintentos de escritura.
@@ -51,3 +51,7 @@ Las claves del runtime se resuelven en `_shared/environment.ts`. El cliente de u
 Las nuevas tablas de metadatos tienen RLS. Solo el backend, tras authorize_content o un OIDC GitHub verificado y asociado al destino, puede escribirlas. No se usa service_role para editar Sanity. Configuración de repositorios, revisiones y seguridad del callback: [publicación y despliegues](publication-tracking.md).
 
 La [consolidación de fase 5](template-governance.md) sustituye la antigua activación de módulos por clientes, separa diseño de contenido y protege todos los caminos de publicación de drafts privilegiados.
+
+## Aprovisionamiento Sanity
+
+El [servicio de fase 6.1](sanity-provisioning.md) exige Super Admin tanto en Edge como en una RPC `service_role`. Los clientes no pueden leer trabajos ni ciphertext. Las credenciales nuevas se cifran con AES-256-GCM y claves versionadas que solo existen en secretos Edge; Salitre conserva su mapa heredado. Los POST no se reintentan automáticamente y cualquier token de resultado incierto se detiene en revisión manual.

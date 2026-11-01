@@ -6,12 +6,14 @@ import { contentRequest } from '../../../shared/content.ts';
 import { observePublication } from '../../../shared/publication-mutation.ts';
 import { publicationAdmin, publicationJournal } from '../_shared/publications.ts';
 import { sanityStore } from '../_shared/sanity.ts';
+import { resolveIntegrationCredential } from '../_shared/integration-credentials.ts';
 Deno.serve(
   handler(async (request) => {
     const { client, user } = await authenticate(request);
     const input = contentRequest.parse(await limitedJson(request));
     let designPermission: boolean | undefined;
     let publicationId: string | undefined;
+    const admin = publicationAdmin();
     const result = await executeContent(input, {
       canManageDesign: async () => {
         if (designPermission !== undefined) return designPermission;
@@ -42,17 +44,35 @@ Deno.serve(
             return data;
           },
         });
-        const tokens: unknown = JSON.parse(Deno.env.get('SANITY_TOKENS') || '{}');
-        const token =
-          typeof tokens === 'object' && tokens !== null
-            ? (tokens as Record<string, unknown>)[integration.integrationId]
-            : undefined;
-        if (typeof token !== 'string' || !token)
-          throw new HttpError(503, 'Token de integración pendiente de configuración');
-        const store = sanityStore(integration.projectId, integration.dataset, token, {
+        const credential = await resolveIntegrationCredential(
+          integration.integrationId,
+          (name) => Deno.env.get(name),
+          async (id) => {
+            const { data, error } = await admin
+              .from('integration_credentials')
+              .select('ciphertext,iv,key_version')
+              .eq('integration_id', id)
+              .maybeSingle();
+            if (error && !['42P01', 'PGRST205'].includes(error.code))
+              throw new HttpError(503, 'Credencial de integración no disponible');
+            return data;
+          },
+        );
+        const store = sanityStore(integration.projectId, integration.dataset, credential.token, {
           restaurantId: integration.restaurantId,
           integrationId: integration.integrationId,
           productionTarget: Deno.env.get('SALITRE_PRODUCTION_WRITE_TARGET'),
+          ...(credential.managedKeyVersion
+            ? {
+                managedProduction: {
+                  restaurantId: integration.restaurantId,
+                  integrationId: integration.integrationId,
+                  projectId: integration.projectId,
+                  dataset: integration.dataset,
+                  keyVersion: credential.managedKeyVersion,
+                },
+              }
+            : {}),
         });
         if (
           input.action === 'publish' ||
@@ -60,7 +80,7 @@ Deno.serve(
           input.action === 'restore'
         ) {
           publicationId = input.operationId || crypto.randomUUID();
-          const journal = await publicationJournal(publicationAdmin(), {
+          const journal = await publicationJournal(admin, {
             ...integration,
             operationId: publicationId,
             actorId: user.id,

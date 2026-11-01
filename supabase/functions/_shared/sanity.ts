@@ -10,7 +10,12 @@ export function sanityStore(
   projectId: string,
   dataset: string,
   token: string,
-  authorization?: { restaurantId: string; integrationId: string; productionTarget?: string },
+  authorization?: {
+    restaurantId: string;
+    integrationId: string;
+    productionTarget?: string;
+    managedProduction?: unknown;
+  },
 ): ContentStore {
   const target = Object.freeze({
     projectId,
@@ -19,11 +24,12 @@ export function sanityStore(
     integrationId: authorization?.integrationId || '',
   });
   const productionTarget = authorization?.productionTarget;
+  const managedProduction = authorization?.managedProduction;
   const base = `https://${projectId}.api.sanity.io/v2025-02-19`;
   async function call(path: string, init: RequestInit = {}) {
     // Límite HTTP común para mutaciones (incluido borradores/publicación) y assets.
     if ((init.method || 'GET').toUpperCase() !== 'GET')
-      assertSanityWriteTarget(target, productionTarget);
+      assertSanityWriteTarget(target, productionTarget, managedProduction);
     const response = await fetch(base + path, {
       ...init,
       headers: { Authorization: `Bearer ${token}`, ...init.headers },

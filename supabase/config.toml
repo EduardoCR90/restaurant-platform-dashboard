@@ -16,3 +16,6 @@ import_map = "./functions/deno.json"
 [functions.publications]
 verify_jwt = false
 import_map = "./functions/deno.json"
+[functions.sanity-provisioning]
+verify_jwt = false
+import_map = "./functions/deno.json"

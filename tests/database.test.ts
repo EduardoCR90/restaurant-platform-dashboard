@@ -23,6 +23,7 @@ beforeAll(async () => {
     '202610310001_platform.sql',
     '202610310002_publications.sql',
     '202611010001_template_governance.sql',
+    '202611010002_sanity_provisioning.sql',
   ])
     await db.exec(await readFile('supabase/migrations/' + file, 'utf8'));
   await db.exec(`insert into auth.users(id) values ${[owner, staff, other, suspended, outsider, admin, manager].map((x) => `('${x}')`).join(',')};

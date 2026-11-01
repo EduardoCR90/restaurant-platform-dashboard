@@ -2,25 +2,25 @@
 
 Proyecto fijo: `wanrzgumoamryuybmopa`. Dashboard existente: https://restaurant-platform-dashboard-xi.vercel.app.
 
-El workflow `.github/workflows/deploy-supabase.yml` **solo** se ejecuta con workflow_dispatch y desde main. Esta PR lo prepara; no se ha solicitado ni realizado un despliegue.
+El workflow `.github/workflows/deploy-supabase.yml` se ejecuta manualmente con `workflow_dispatch` desde main y también como workflow reutilizable tras la CI verde de main.
 
 ## Qué publica y qué necesita
 
 - Supabase CLI **2.122.0**, versión fija instalada con la acción oficial supabase/setup-cli.
-- Solo las funciones `content` y `platform-admin`, con nombres y proyecto explícitos en dos comandos consecutivos. No hay selección automática de funciones, `--prune`, enlace de base de datos ni comandos SQL.
-- Token de administración de CLI desde el secreto de Actions `SUPABASE_ACCESS_TOKEN`, ya disponible según la configuración indicada. Solo se entrega a los dos pasos de despliegue, nunca a instalación, tests o prueba de empaquetado. No se imprime y no se envía como secreto del runtime Edge.
+- Solo las funciones `content`, `platform-admin`, `publications` y `sanity-provisioning`, con nombres y proyecto explícitos en comandos consecutivos. No hay selección automática de funciones, `--prune`, enlace de base de datos ni comandos SQL.
+- Token de administración de CLI desde el secreto de Actions `SUPABASE_ACCESS_TOKEN`, ya disponible según la configuración indicada. Solo se entrega a los pasos de despliegue, nunca a instalación, tests o prueba de empaquetado. No se imprime y no se envía como secreto del runtime Edge.
 - `contents: read` para GITHUB_TOKEN, sin escritura de repositorio, OIDC o permisos de despliegue de webs. Checkout no persiste credenciales.
-- Concurrencia común por proyecto, `cancel-in-progress: false`: no interrumpe un despliegue activo ni ejecuta otro simultáneamente. Los despliegues son secuenciales; no existe una transacción atómica entre ambas funciones.
+- Concurrencia común por proyecto, `cancel-in-progress: false`: no interrumpe un despliegue activo ni ejecuta otro simultáneamente. Los despliegues son secuenciales; no existe una transacción atómica entre funciones.
 
-Los secretos del runtime ya configurados en Supabase permanecen allí. Comprueba `ALLOWED_ORIGINS=https://restaurant-platform-dashboard-xi.vercel.app` (incluye otros orígenes solo si están autorizados), las claves públicas automáticas/APP_ y `SANITY_TOKENS` por integration.id. Este workflow no crea ni cambia secretos, usuarios, módulos, membresías o integraciones. Salitre debe seguir apuntando a `staging`; no ejecutes de nuevo bootstrap o migraciones para desplegar funciones.
+Los secretos del runtime ya configurados en Supabase permanecen allí. Comprueba `ALLOWED_ORIGINS=https://restaurant-platform-dashboard-xi.vercel.app` (incluye otros orígenes solo si están autorizados), las claves públicas automáticas/APP_ y `SANITY_TOKENS` por integration.id. Para habilitar el nuevo endpoint, configura también los cuatro secretos descritos en [aprovisionamiento Sanity](sanity-provisioning.md). El workflow no crea ni cambia secretos ni ejecuta solicitudes de aprovisionamiento. Salitre conserva su integración existente; no repitas bootstrap.
 
 ## JWT y dependencias compartidas
 
-`supabase/config.toml` declara `verify_jwt=false` y `import_map="./functions/deno.json"` para las dos funciones. El comando fija además `--no-verify-jwt` y `--import-map supabase/functions/deno.json`; el flag se refiere al gateway, **no** desactiva la autenticación de la aplicación. Cada función exige Bearer, valida el usuario con `auth.getUser` y aplica sus comprobaciones de rol/RLS. `content` resuelve el restaurante/módulo/integración y `platform-admin` verifica al administrador global antes de usar claves privilegiadas.
+`supabase/config.toml` declara `verify_jwt=false` y `import_map="./functions/deno.json"` para las cuatro funciones. El comando fija además `--no-verify-jwt` y `--import-map supabase/functions/deno.json`; el flag se refiere al gateway, **no** desactiva la autenticación de la aplicación. Las peticiones de usuario exigen Bearer y validan el usuario con `auth.getUser`. `content` resuelve restaurante/módulo/integración, `platform-admin` y `sanity-provisioning` verifican administrador global, y los callbacks de `publications` validan OIDC registrado.
 
 Se usa `--use-api`: la CLI recorre el grafo de imports locales y prepara los archivos para el bundler de Supabase, sin Docker ni servicios de base de datos. Los imports relativos a `supabase/functions/_shared/` y al `shared/` de la raíz se incluyen. El import map fija zod y el SDK de Supabase. No se copian secretos, node_modules ni código Astro/Studio al paquete.
 
-El adaptador HTTP conserva la barrera de escrituras: solo dataset exactamente `staging`, antes de emitir una mutación o un upload. No hay flag en este workflow que habilite `production`.
+El adaptador HTTP conserva la política de escritura existente: staging y la excepción exacta de Salitre production. Las integraciones nuevas usan proyecto independiente y credencial cifrada; el workflow no llama al proveedor ni crea recursos.
 
 ## Verificación sin desplegar
 
@@ -41,12 +41,12 @@ Esta prueba verifica **el paquete de fuentes y sus metadatos**. Deno comprueba l
 
 1. Revisa e integra la PR. El workflow no se dispara al fusionar; aparecerá en Actions cuando esté en main.
 2. Abre **Actions → Deploy Supabase Edge Functions → Run workflow**, selecciona **main** y ejecuta manualmente. Elegir otra rama hace que el job se omita.
-3. Revisa los pasos de validación y los dos pasos individuales de deploy. Ambos deben finalizar correctamente. El resumen enlaza los datos del alcance, no contiene tokens.
-4. En Supabase → Edge Functions, confirma que aparecen `content` y `platform-admin`, con fecha/versión actualizadas y verificación JWT de gateway desactivada. Las demás funciones no deben cambiar.
-5. Desde el dashboard Vercel, sin sesión no debe existir acceso editorial; con usuario autorizado prueba lectura y, solo en `staging`, borrador/publicación. Sin Bearer válido las funciones deben devolver 401 (desde un origen permitido); un usuario sin permisos debe recibir 403. `platform-admin` debe denegar usuarios no globales.
-6. Revisa los logs de ambas funciones sin registrar cabeceras o tokens. Comprueba CORS si el navegador falla antes de recibir una respuesta. No intentes una escritura real en production: los tests de seguridad verifican el bloqueo con HTTP sustituido.
+3. Revisa los pasos de validación y los cuatro pasos individuales de deploy. Todos deben finalizar correctamente. El resumen no contiene tokens.
+4. En Supabase → Edge Functions, confirma las cuatro funciones, su fecha/versión y verificación JWT de gateway desactivada.
+5. Sin Bearer válido deben devolver 401 desde un origen permitido; un usuario sin permisos debe recibir 403. `platform-admin` y `sanity-provisioning` deben denegar usuarios no globales.
+6. Revisa logs sin registrar cabeceras, respuestas de proveedor o tokens. No ejecutes una creación real como prueba del despliegue; usa el procedimiento controlado de [fase 6.1](sanity-provisioning.md).
 
-Si falla un paso, revisa cuál de las dos funciones llegó a actualizarse antes de repetir manualmente. Un fallo de auth/token puede indicar permisos del PAT (edge_functions_write; los requisitos exactos se consultan en `supabase functions deploy --help` de la versión fijada). No añadas permisos SQL ni ejecutes migraciones para resolver un error de despliegue.
+Si falla un paso, revisa qué funciones llegaron a actualizarse antes de repetir manualmente. Un fallo de auth/token puede indicar permisos del PAT (edge_functions_write; los requisitos exactos se consultan en `supabase functions deploy --help` de la versión fijada). No amplíes permisos SQL para resolver un error de despliegue.
 
 ## Política actual de Sanity
 
@@ -54,4 +54,4 @@ La iteración 2 añade la excepción de Salitre configurada por tupla exacta. [C
 
 ## Fase 5: rollout validado
 
-El despliegue manual sigue disponible. El workflow es también reutilizable desde `Roll out validated platform main`, que exige CI verde del main actual del mismo repositorio, aplica primero metadatos/permisos revisados y utiliza el SHA exacto validado. La llamada reutilizable conserva los mismos tests, CLI fija, tres funciones y secretos. No hay escrituras CMS ni bootstrap.
+El despliegue manual sigue disponible. El workflow es también reutilizable desde `Roll out validated platform main`, que exige CI verde del main actual del mismo repositorio, aplica primero metadatos/permisos revisados y utiliza el SHA exacto validado. La llamada reutilizable conserva los mismos tests, CLI fija, cuatro funciones y secretos. No hay escrituras CMS, bootstrap ni llamadas de creación a Sanity.

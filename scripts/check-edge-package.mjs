@@ -29,6 +29,7 @@ const expected = {
     'shared/visual.ts',
     'shared/platform-contract.ts',
     'shared/editorial-permissions.ts',
+    'supabase/functions/_shared/integration-credentials.ts',
   ],
   publications: [
     'shared/visual.ts',
@@ -49,6 +50,24 @@ const expected = {
     'supabase/functions/_shared/environment.ts',
     'supabase/functions/_shared/http.ts',
     'shared/access.ts',
+    'shared/editor-service.ts',
+    'shared/editorial-state.ts',
+    'shared/content.ts',
+    'shared/editorial.ts',
+    'shared/visual.ts',
+    'shared/platform-contract.ts',
+    'shared/editorial-permissions.ts',
+  ],
+  'sanity-provisioning': [
+    'supabase/functions/sanity-provisioning/index.ts',
+    'supabase/functions/_shared/auth.ts',
+    'supabase/functions/_shared/environment.ts',
+    'supabase/functions/_shared/http.ts',
+    'supabase/functions/_shared/integration-credentials.ts',
+    'supabase/functions/_shared/sanity-management.ts',
+    'supabase/functions/_shared/sanity-provisioning-service.ts',
+    'supabase/functions/_shared/provisioning-request.ts',
+    'shared/sanity-provisioning.ts',
     'shared/editor-service.ts',
     'shared/editorial-state.ts',
     'shared/content.ts',
@@ -157,7 +176,9 @@ const server = createServer(async (request, response) => {
         id:
           slug === 'content'
             ? '00000000-0000-4000-8000-000000000001'
-            : '00000000-0000-4000-8000-000000000002',
+            : slug === 'sanity-provisioning'
+              ? '00000000-0000-4000-8000-000000000003'
+              : '00000000-0000-4000-8000-000000000002',
         slug,
         name: slug,
         status: 'ACTIVE',
@@ -210,7 +231,7 @@ try {
     );
   }
   assert.deepEqual(requestErrors, []);
-  assert.equal(uploads.size, 3);
+  assert.equal(uploads.size, 4);
   console.log(
     'Sin contacto con Supabase real, sin despliegue y sin escrituras de contenido o base de datos.',
   );

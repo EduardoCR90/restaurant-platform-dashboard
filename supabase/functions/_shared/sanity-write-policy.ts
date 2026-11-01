@@ -15,10 +15,32 @@ export type SanityWriteTarget = {
   projectId: string;
   dataset: string;
 };
+export const managedProductionSchema = z
+  .object({
+    restaurantId: z.uuid(),
+    integrationId: z.uuid(),
+    projectId: z.string().regex(/^[a-z0-9]{5,16}$/),
+    dataset: z.literal('production'),
+    keyVersion: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/),
+  })
+  .strict();
 
-export function assertSanityWriteTarget(target: SanityWriteTarget, configuration?: string): void {
+export function assertSanityWriteTarget(
+  target: SanityWriteTarget,
+  configuration?: string,
+  managedProduction?: unknown,
+): void {
   // El entorno opcional de production jamás interfiere en las integraciones de staging.
   if (target.dataset === 'staging') return;
+  const managed = managedProductionSchema.safeParse(managedProduction);
+  if (
+    target.dataset === 'production' &&
+    managed.success &&
+    (['restaurantId', 'integrationId', 'projectId', 'dataset'] as const).every(
+      (key) => managed.data[key] === target[key],
+    )
+  )
+    return;
   if (target.dataset !== 'production' || !configuration)
     throw new HttpError(403, 'Destino de escritura Sanity no autorizado');
   let allowed: z.infer<typeof productionTargetSchema>;
