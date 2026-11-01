@@ -1,3 +1,4 @@
+import { WebsiteVersions } from './WebsiteVersions';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useRestaurant } from '../restaurants/RestaurantProvider';
@@ -39,6 +40,7 @@ export function SettingsPage() {
             Datos de la plataforma para {ctx.restaurant.name}. La identidad pública se edita en
             contenido.
           </p>
+          <WebsiteVersions key={ctx.restaurant.id} />
           <form className="narrow-form" onSubmit={submit}>
             <label>
               Nombre en plataforma
@@ -60,7 +62,7 @@ export function SettingsPage() {
           </form>
           {ctx.contentAllowed && (
             <Link className="text-link" to="/content/settings/restaurant-settings">
-              Editar información pública, horarios e identidad ↗
+              Editar información pública y horarios ↗
             </Link>
           )}
         </>
@@ -118,6 +120,11 @@ export function ProfilePage() {
 }
 type AdminField = { name: string; label: string; options?: readonly string[] };
 const adminFields: Record<string, AdminField[]> = {
+  module_activation: [
+    { name: 'restaurant_id', label: 'UUID del restaurante' },
+    { name: 'module_key', label: 'Módulo', options: moduleKeys },
+    { name: 'enabled', label: 'Activo', options: ['true', 'false'] },
+  ],
   restaurant: [
     { name: 'name', label: 'Nombre' },
     { name: 'slug', label: 'Slug' },
@@ -160,7 +167,7 @@ export function AdminPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  if (!ctx.data?.admin) return <p role="alert">Requiere administración global.</p>;
+  if (!ctx.data?.admin) return <p role="alert">Requiere Super Admin.</p>;
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
@@ -170,6 +177,7 @@ export function AdminPage() {
       const payload = {
         ...values,
         ...(operation === 'entitlement' ? { granted: values.granted === 'true' } : {}),
+        ...(operation === 'module_activation' ? { enabled: values.enabled === 'true' } : {}),
       };
       const input = adminRequest.parse({ operation, payload });
       await adminOperation(input);
@@ -183,7 +191,7 @@ export function AdminPage() {
   }
   return (
     <>
-      <p className="eyebrow">Administración de plataforma</p>
+      <p className="eyebrow">Super Admin · Administración de plataforma</p>
       <h1>Una base común.</h1>
       <p className="lede">
         Operaciones privilegiadas. Los restaurantes no pueden concederse módulos o privilegios

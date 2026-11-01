@@ -27,9 +27,13 @@ const expected = {
     'shared/content.ts',
     'shared/editorial.ts',
     'shared/visual.ts',
+    'shared/platform-contract.ts',
+    'shared/editorial-permissions.ts',
   ],
   publications: [
     'shared/visual.ts',
+    'shared/platform-contract.ts',
+    'shared/editorial-permissions.ts',
     'supabase/functions/publications/index.ts',
     'supabase/functions/_shared/publications.ts',
     'supabase/functions/_shared/auth.ts',
@@ -50,6 +54,8 @@ const expected = {
     'shared/content.ts',
     'shared/editorial.ts',
     'shared/visual.ts',
+    'shared/platform-contract.ts',
+    'shared/editorial-permissions.ts',
   ],
 };
 const uploads = new Map();

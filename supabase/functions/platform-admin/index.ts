@@ -76,11 +76,16 @@ Deno.serve(
         .eq('id', invitation.id);
       return { id: invitation.id };
     }
-    const { data, error } = await admin.rpc('admin_configure', {
-      actor: user.id,
-      operation: input.operation,
-      payload: input.payload,
-    });
+    const { data, error } = await admin.rpc(
+      ['module_activation', 'select_template'].includes(input.operation)
+        ? 'admin_website_configure'
+        : 'admin_configure',
+      {
+        actor: user.id,
+        operation: input.operation,
+        payload: input.payload,
+      },
+    );
     if (error)
       throw new HttpError(
         422,

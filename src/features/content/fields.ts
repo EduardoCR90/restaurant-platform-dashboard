@@ -280,9 +280,14 @@ export function contentFields(
   kind: Kind,
   document: Record<string, unknown>,
   visualEnabled = true,
+  manageDesign = false,
 ): Field[] {
   if (kind !== 'page')
-    return fields[kind].filter((field) => visualEnabled || field.type !== 'visual');
+    return fields[kind].filter(
+      (field) =>
+        ((visualEnabled && manageDesign) || field.type !== 'visual') &&
+        (manageDesign || field.name !== 'logo'),
+    );
   const slug = (document.slug as { current?: unknown } | undefined)?.current;
   const sections = compositionSections(slug);
   const hasBlocks = Array.isArray(document.blocks) && document.blocks.length > 0;

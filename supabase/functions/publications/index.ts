@@ -56,6 +56,20 @@ Deno.serve(
           hashes: [...new Set(report.fingerprints)].sort(),
         });
         checkDatabase(recorded.error);
+        if (report.template && ['ready', 'succeeded'].includes(report.phase)) {
+          checkDatabase(
+            (
+              await db.rpc('report_template_build', {
+                target: target.id,
+                run: claims.run_id,
+                attempt: Number(claims.run_attempt),
+                sha: claims.sha,
+                phase: report.phase,
+                identity: report.template,
+              })
+            ).error,
+          );
+        }
         return { recorded: true, deployRequired: recorded.data !== false };
       }
       const { client } = await authenticate(request);

@@ -464,9 +464,26 @@ export function ContentEditor() {
                   servidor. Recarga el documento después.
                 </p>
               )}
+              {!ctx.data?.admin && (
+                <p className="muted">
+                  Puedes editar contenidos, orden y visibilidad. El diseño global, el branding y la
+                  estructura los configura Super Admin.
+                </p>
+              )}
+              {snapshot?.permissions?.designDraft && !snapshot.permissions.manageDesign && (
+                <p role="status">
+                  Este borrador incluye cambios de diseño de Super Admin. Su publicación o descarte
+                  requiere Super Admin.
+                </p>
+              )}
               <fieldset disabled={busy}>
                 <FormFields
-                  definitions={contentFields(kind, document, snapshot?.visualContractVersion === 2)}
+                  definitions={contentFields(
+                    kind,
+                    document,
+                    snapshot?.visualContractVersion === 2,
+                    ctx.data?.admin === true && snapshot?.permissions?.manageDesign === true,
+                  )}
                   value={document}
                   onChange={change}
                   options={options}
@@ -476,6 +493,10 @@ export function ContentEditor() {
                 )}
                 {kind === 'page' && (
                   <BlockEditor
+                    manageDesign={
+                      ctx.data?.admin === true &&
+                      (id === 'new' || snapshot?.permissions?.manageDesign === true)
+                    }
                     visualEnabled={snapshot?.visualContractVersion === 2}
                     historical={['inicio', 'carta', 'restaurante', 'reservas'].includes(
                       String((document.slug as { current?: string })?.current),
@@ -493,7 +514,12 @@ export function ContentEditor() {
                 {!snapshot?.withdrawn && (
                   <button
                     type="button"
-                    disabled={busy || dirty || !snapshot?.draftRev}
+                    disabled={
+                      busy ||
+                      dirty ||
+                      !snapshot?.draftRev ||
+                      (!!snapshot.permissions?.designDraft && !snapshot.permissions.manageDesign)
+                    }
                     onClick={() => void publish()}
                   >
                     Publicar cambios ↗
@@ -502,7 +528,10 @@ export function ContentEditor() {
                 {(dirty || snapshot?.draftRev) && (
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={
+                      busy ||
+                      (!!snapshot?.permissions?.designDraft && !snapshot.permissions.manageDesign)
+                    }
                     onClick={() => void editorialAction('discard')}
                   >
                     Descartar cambios
@@ -513,7 +542,11 @@ export function ContentEditor() {
                   (snapshot.withdrawn ? (
                     <button
                       type="button"
-                      disabled={busy || dirty}
+                      disabled={
+                        busy ||
+                        dirty ||
+                        (!!snapshot.permissions?.designDraft && !snapshot.permissions.manageDesign)
+                      }
                       onClick={() => void editorialAction('restore')}
                     >
                       Volver a publicar

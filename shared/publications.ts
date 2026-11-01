@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { templateReleaseSchema } from './platform-contract.ts';
 export const publicationState = z.enum([
   'publishing_sanity',
   'awaiting_deployment',
@@ -56,6 +57,7 @@ const numeric = z.string().regex(/^[1-9][0-9]{0,19}$/);
 export const deploymentReportSchema = z
   .object({
     action: z.literal('deployment_report'),
+    template: templateReleaseSchema.optional(),
     phase: z.enum(['building', 'ready', 'succeeded', 'failed']),
     fingerprints: z
       .array(z.string().regex(/^[a-f0-9]{64}$/))

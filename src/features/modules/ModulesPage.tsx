@@ -56,9 +56,7 @@ export function ModulesPage() {
                 {module.implemented &&
                   granted &&
                   ctx.restaurant?.status === 'active' &&
-                  (ctx.data?.admin ||
-                    ctx.role === 'restaurant_owner' ||
-                    ctx.role === 'restaurant_manager') && (
+                  ctx.data?.admin && (
                     <button
                       disabled={busy === module.key}
                       onClick={() => void toggle(module.key, !enabled)}
@@ -72,7 +70,8 @@ export function ModulesPage() {
         })}
       </div>
       <p className="muted">
-        La contratación la gestiona la plataforma. Activar un módulo no concede permisos de usuario.
+        La contratación y la activación las gestiona Super Admin. Los módulos no conceden permisos
+        de usuario.
       </p>
     </>
   );

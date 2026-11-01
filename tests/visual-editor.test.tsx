@@ -45,7 +45,12 @@ it('blocks reorder, hide and remove only after confirmation, retaining keys and 
     ]);
     return (
       <>
-        <BlockEditor value={blocks} onChange={setBlocks} options={{ category: [], dish: [] }} />
+        <BlockEditor
+          manageDesign
+          value={blocks}
+          onChange={setBlocks}
+          options={{ category: [], dish: [] }}
+        />
         <output data-testid="value">{JSON.stringify(blocks)}</output>
       </>
     );
@@ -96,4 +101,19 @@ it('legacy server editor does not offer unsupported hide or variant controls', (
     />,
   );
   expect(screen.queryByRole('button', { name: 'Ocultar bloque 1' })).not.toBeInTheDocument();
+});
+
+it('client editor retains content/order/visibility but has no layout or structural controls', () => {
+  render(
+    <BlockEditor
+      value={[{ _type: 'divider', _key: 'one', variant: 'compact', spacing: 'large' }]}
+      onChange={() => {}}
+      options={{ category: [], dish: [] }}
+    />,
+  );
+  expect(screen.getByRole('button', { name: 'Ocultar bloque 1' })).toBeInTheDocument();
+  expect(screen.queryByLabelText('Presentación')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Espacio')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Añadir bloque' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Quitar bloque 1' })).not.toBeInTheDocument();
 });

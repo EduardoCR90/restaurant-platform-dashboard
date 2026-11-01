@@ -10,8 +10,15 @@ Deno.serve(
   handler(async (request) => {
     const { client, user } = await authenticate(request);
     const input = contentRequest.parse(await limitedJson(request));
+    let designPermission: boolean | undefined;
     let publicationId: string | undefined;
     const result = await executeContent(input, {
+      canManageDesign: async () => {
+        if (designPermission !== undefined) return designPermission;
+        const { data, error } = await client.rpc('is_platform_admin');
+        if (error) throw new HttpError(503, 'No se pudieron comprobar los permisos visuales');
+        return (designPermission = data === true);
+      },
       authorize: async (restaurantId) => {
         const integration = await resolveContentIntegration(restaurantId, {
           authorize: async (id) => {

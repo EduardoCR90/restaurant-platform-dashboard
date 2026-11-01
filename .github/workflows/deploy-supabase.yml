@@ -1,6 +1,14 @@
 name: Deploy Supabase Edge Functions
 
 on:
+  workflow_call:
+    inputs:
+      validated_sha:
+        type: string
+        required: true
+    secrets:
+      SUPABASE_ACCESS_TOKEN:
+        required: true
   workflow_dispatch:
 
 permissions:
@@ -21,6 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ inputs.validated_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -12,7 +12,7 @@ const user = {
   user_metadata: {},
   created_at: '2026-10-31T00:00:00Z',
 };
-async function mockedWorkspace(page: Page) {
+async function mockedWorkspace(page: Page, superAdmin = false) {
   const accessToken =
     Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url') +
     '.' +
@@ -43,6 +43,7 @@ async function mockedWorkspace(page: Page) {
   let snapshot = {
     id: 'page1',
     visualContractVersion: 2 as const,
+    permissions: { contractVersion: 1 as const, manageDesign: superAdmin, designDraft: false },
     kind: 'page',
     draftRev: null as string | null,
     publishedRev: 'published-1' as string | null,
@@ -82,7 +83,7 @@ async function mockedWorkspace(page: Page) {
     else if (url.pathname.includes('/rest/v1/restaurant_modules'))
       body = [{ restaurant_id: restaurantId, module_key: 'content_management', enabled: true }];
     else if (url.pathname.includes('/rest/v1/restaurant_integrations')) body = [];
-    else if (url.pathname.includes('/rpc/is_platform_admin')) body = false;
+    else if (url.pathname.includes('/rpc/is_platform_admin')) body = superAdmin;
     else if (url.pathname.includes('/functions/v1/publications')) body = [];
     else if (url.pathname.includes('/functions/v1/content')) {
       const request = route.request().postDataJSON() as {
@@ -143,6 +144,7 @@ async function mockedWorkspace(page: Page) {
         snapshot = {
           id: 'new-generated',
           visualContractVersion: 2,
+          permissions: { contractVersion: 1, manageDesign: superAdmin, designDraft: false },
           kind: 'page',
           draftRev: 'new-draft',
           publishedRev: null,
@@ -297,13 +299,14 @@ test('avisa al navegar y cambiar restaurante; cancelar conserva campos, guardar 
 test('preset personalizado se guarda como borrador y se publica sin cambiar permisos (API de ensayo)', async ({
   page,
 }) => {
-  await mockedWorkspace(page);
+  await mockedWorkspace(page, true);
   let saved = false,
     published = false;
   let snapshot = {
     id: 'restaurant-settings',
     kind: 'settings',
     visualContractVersion: 2,
+    permissions: { contractVersion: 1, manageDesign: true, designDraft: false },
     draftRev: null as string | null,
     publishedRev: 'settings-pub',
     document: {
@@ -360,7 +363,7 @@ test('preset personalizado se guarda como borrador y se publica sin cambiar perm
 test('composición permite reordenar y ocultar sin borrar los bloques (API de ensayo)', async ({
   page,
 }) => {
-  await mockedWorkspace(page);
+  await mockedWorkspace(page, true);
   await page.goto('/content/page/page1');
   await page.getByLabel('Tipo de bloque').selectOption('divider');
   await page.getByRole('button', { name: 'Añadir bloque', exact: true }).click();
@@ -378,4 +381,80 @@ test('composición permite reordenar y ocultar sin borrar los bloques (API de en
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Quitar bloque 1', exact: true }).click();
   await expect(page.locator('.block-panel')).toHaveCount(1);
+});
+
+test('client Admin has editorial controls but cannot change design, modules or template', async ({
+  page,
+}) => {
+  await mockedWorkspace(page);
+  const settings = {
+    name: 'Restaurante de prueba',
+    tagline: 'Firma',
+    concept: 'Concepto',
+    address: 'Dirección de prueba',
+    email: 'contact@example.test',
+    phone: '000',
+    isFictional: true,
+    hours: [{ _key: 'h', days: 'Lunes', time: '12:00' }],
+    theme: { preset: 'modern' },
+  };
+  let snapshot = {
+    id: 'restaurant-settings',
+    kind: 'settings',
+    visualContractVersion: 2,
+    permissions: { contractVersion: 1, manageDesign: false, designDraft: false },
+    draftRev: null as string | null,
+    publishedRev: 'pub',
+    document: settings,
+  };
+  await page.route(`https://${project}.supabase.co/functions/v1/content`, async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.kind !== 'settings') {
+      await route.fallback();
+      return;
+    }
+    if (request.action === 'save') {
+      expect(request.document.theme).toEqual({ preset: 'modern' });
+      snapshot = { ...snapshot, draftRev: 'draft', document: request.document };
+    }
+    await route.fulfill({ json: snapshot });
+  });
+  await page.goto('/content/settings/restaurant-settings');
+  await expect(page.getByLabel(/^Concepto/)).toBeVisible();
+  await expect(page.getByLabel('Preset visual')).toHaveCount(0);
+  await expect(page.getByText('Logo', { exact: true })).toHaveCount(0);
+  await page.getByLabel(/^Concepto/).fill('Texto editado por el cliente');
+  await page.getByRole('button', { name: 'Guardar borrador', exact: true }).click();
+  await expect(page.getByText('Borrador guardado. Todavía no se ha publicado.')).toBeVisible();
+  await page.goto('/modules');
+  await expect(page.getByRole('button', { name: /^(Activar|Desactivar)$/ })).toHaveCount(0);
+  const release = {
+    template_key: 'restaurant-editorial',
+    version: '0.3.0',
+    source_commit: 'a'.repeat(40),
+    distribution_hash: 'b'.repeat(64),
+    configuration_contract: 1,
+    content_contract: 'salitre-v1',
+    visual_contract: 2,
+  };
+  await page.route(`https://${project}.supabase.co/rest/v1/template_releases*`, (route) =>
+    route.fulfill({ json: [release] }),
+  );
+  await page.route(`https://${project}.supabase.co/rest/v1/restaurant_websites*`, (route) =>
+    route.fulfill({
+      json: {
+        restaurant_id: restaurantId,
+        installed_template_key: release.template_key,
+        installed_version: release.version,
+        desired_template_key: null,
+        desired_version: null,
+        revision: 1,
+        verified_run_id: '123',
+        verified_at: '2026-11-01T00:00:00Z',
+      },
+    }),
+  );
+  await page.goto('/settings');
+  await expect(page.getByText('Instalada: restaurant-editorial · 0.3.0')).toBeVisible();
+  await expect(page.getByLabel('Versión aprobada del template')).toHaveCount(0);
 });

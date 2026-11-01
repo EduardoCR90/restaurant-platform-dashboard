@@ -403,6 +403,7 @@ export const contentRequest = z.discriminatedUnion('action', [
 ]);
 export type ContentRequest = z.infer<typeof contentRequest>;
 export type Snapshot = {
+  permissions?: { contractVersion: 1; manageDesign: boolean; designDraft: boolean };
   visualContractVersion?: 2;
   id: string;
   kind: Kind;
@@ -421,6 +422,9 @@ export type ContentItem = {
 };
 
 export const snapshotSchema = z.object({
+  permissions: z
+    .object({ contractVersion: z.literal(1), manageDesign: z.boolean(), designDraft: z.boolean() })
+    .optional(),
   visualContractVersion: z.literal(2).optional(),
   publicationId: z.uuid().optional(),
   id: documentId,

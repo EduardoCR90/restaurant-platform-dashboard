@@ -1,4 +1,5 @@
 import { managedVisualKeys } from './visual.ts';
+import { designChanged, designBlockFields } from './editorial-permissions.ts';
 import { isWithdrawn, canWithdraw } from './editorial-state.ts';
 import {
   contentRequest,
@@ -30,6 +31,7 @@ export interface ContentStore {
 }
 export interface ContentDependencies {
   authorize(restaurantId: string): Promise<ContentStore>;
+  canManageDesign?(restaurantId: string): Promise<boolean>;
 }
 function clean(doc: JsonRecord): JsonRecord {
   return Object.fromEntries(
@@ -66,7 +68,12 @@ function ensureRevisions(
   )
     throw new HttpError(409, 'El contenido cambió en otra sesión. Recarga antes de continuar.');
 }
-function snapshot(kind: Kind, id: string, v: Awaited<ReturnType<typeof versions>>): Snapshot {
+function snapshot(
+  kind: Kind,
+  id: string,
+  v: Awaited<ReturnType<typeof versions>>,
+  manageDesign = false,
+): Snapshot {
   const doc = v.draft || v.published;
   if (!doc) throw new HttpError(404, 'Documento no encontrado');
   const { _type, ...fields } = clean(doc);
@@ -75,6 +82,11 @@ function snapshot(kind: Kind, id: string, v: Awaited<ReturnType<typeof versions>
     id,
     kind,
     visualContractVersion: 2,
+    permissions: {
+      contractVersion: 1,
+      manageDesign,
+      designDraft: !!v.draft && designChanged(kind, v.published, v.draft),
+    },
     draftRev: v.draft?._rev ?? null,
     publishedRev: v.published?._rev ?? null,
     withdrawn: isWithdrawn(kind, v.published),
@@ -302,6 +314,57 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
   const req: ContentRequest = contentRequest.parse(input);
   // Siempre antes de leer documentos o subir imágenes: JWT, tenant, rol, estado y módulo.
   const store = await deps.authorize(req.restaurantId);
+  // Resolved by a fresh server-side RPC, never by request fields or Auth metadata.
+  const manageDesign = (await deps.canManageDesign?.(req.restaurantId)) === true;
+  const view = (kind: Kind, id: string, v: Awaited<ReturnType<typeof versions>>) =>
+    snapshot(kind, id, v, manageDesign);
+  const guardDesign = (kind: Kind, before: unknown, after: unknown) => {
+    if (
+      after &&
+      typeof after === 'object' &&
+      'modules' in after &&
+      !manageDesign &&
+      req.action === 'save' &&
+      'document' in req &&
+      'modules' in req.document
+    )
+      throw new HttpError(
+        403,
+        'Los módulos operativos se gestionan exclusivamente en la plataforma.',
+      );
+    if (!manageDesign && designChanged(kind, before, after))
+      throw new HttpError(
+        403,
+        'Solo Super Admin puede cambiar diseño, branding o estructura de bloques. Puedes editar contenido, orden y visibilidad.',
+      );
+  };
+  // Hidden controls are still part of the document. Retain protected server
+  // values byte-for-byte when Zod normalizes/strips metadata on editorial saves.
+  const retainDesign = (kind: Kind, original: JsonRecord | undefined, fields: JsonRecord) => {
+    if (manageDesign) return;
+    if (kind === 'settings') {
+      for (const key of ['theme', 'logo']) {
+        if (original && key in original) fields[key] = structuredClone(original[key]);
+        else delete fields[key];
+      }
+    } else if (kind === 'page' && Array.isArray(fields.blocks)) {
+      const originalBlocks = new Map(
+        (Array.isArray(original?.blocks) ? original.blocks : []).map((block: JsonRecord) => [
+          block._key,
+          block,
+        ]),
+      );
+      fields.blocks = fields.blocks.map((block: JsonRecord) => {
+        const old = originalBlocks.get(block._key);
+        for (const key of designBlockFields) {
+          if (old && key in old) block[key] = structuredClone(old[key]);
+          else delete block[key];
+        }
+        return block;
+      });
+    }
+    guardDesign(kind, original, fields);
+  };
   if (req.action === 'upload') return store.upload(validateUpload(req.data, req.mime), req.mime);
   if (req.action === 'list') {
     const docs = await store.query<SanityDocument[]>(
@@ -333,7 +396,9 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
   if (req.action === 'create') {
     if (singletonIds[req.kind])
       throw new HttpError(400, 'Los documentos únicos ya existen; edítalos desde su sección.');
+    guardDesign(req.kind, undefined, req.document);
     const fields = validateContent(req.kind, req.document);
+    retainDesign(req.kind, undefined, fields);
     await validateReferences(store, req.kind, fields);
     // El sufijo se genera en Sanity (prefijo terminado en punto), sin IDs derivados de slugs.
     const result = await store.mutate([{ create: { ...fields, _type: req.kind, _id: 'drafts.' } }]);
@@ -341,14 +406,15 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
     if (!created?.startsWith('drafts.'))
       throw new HttpError(502, 'Sanity no devolvió el borrador esperado');
     const id = created.slice(7);
-    return snapshot(req.kind, id, await versions(store, req.kind, id));
+    return view(req.kind, id, await versions(store, req.kind, id));
   }
   const current = await versions(store, req.kind, req.id);
-  if (req.action === 'get') return snapshot(req.kind, req.id, current);
+  if (req.action === 'get') return view(req.kind, req.id, current);
   ensureRevisions(current, req);
   if (!current.published && !current.draft) throw new HttpError(404, 'Documento no encontrado');
   if (req.action === 'discard') {
     if (!current.draft) throw new HttpError(409, 'No hay borrador para descartar');
+    guardDesign(req.kind, current.published, current.draft);
     await store.mutate([
       revisionGuard(req.kind, current.draft, req.draftRev),
       { delete: { id: current.draft._id } },
@@ -363,7 +429,7 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
       discarded: true,
       id: req.id,
       kind: req.kind,
-      snapshot: next.published ? snapshot(req.kind, req.id, next) : null,
+      snapshot: next.published ? view(req.kind, req.id, next) : null,
     };
   }
   if (req.action === 'withdraw' || req.action === 'restore') {
@@ -389,13 +455,15 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
           },
         },
       ]);
-      return snapshot(req.kind, req.id, await versions(store, req.kind, req.id));
+      return view(req.kind, req.id, await versions(store, req.kind, req.id));
     }
     if (!isWithdrawn(req.kind, published))
       throw new HttpError(409, 'El contenido no está retirado');
     const restored = req.kind === 'page' ? { status: 'published' } : { visible: true };
+    guardDesign(req.kind, published, current.draft || published);
     const fields = validateContent(req.kind, { ...clean(current.draft || published), ...restored });
     preserveVisualExtensions(req.kind, fields, current.draft || published);
+    retainDesign(req.kind, published, fields);
     if (req.kind === 'page') protectCorePageIdentity(published, fields);
     await validateReferences(store, req.kind, fields, req.id);
     await preventLinksToWithdrawnPages(store, req.kind, fields, req.id);
@@ -416,7 +484,7 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
       await store.mutate([
         { patch: { id: req.id, ifRevisionID: req.publishedRev, set: restored } },
       ]);
-    return snapshot(req.kind, req.id, await versions(store, req.kind, req.id));
+    return view(req.kind, req.id, await versions(store, req.kind, req.id));
   }
   if (
     req.action === 'save' &&
@@ -428,8 +496,10 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
       'Recarga el dashboard para editar esta configuración visual sin perder campos.',
     );
   if (req.action === 'save') {
+    guardDesign(req.kind, current.draft || current.published, req.document);
     const fields = validateContent(req.kind, req.document);
     preserveVisualExtensions(req.kind, fields, current.draft || current.published);
+    retainDesign(req.kind, current.draft || current.published, fields);
     await validateReferences(store, req.kind, fields, req.id);
     if (current.draft) {
       await store.mutate([
@@ -459,12 +529,14 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
         409,
         'Se guardó el borrador, pero cambió la versión publicada. Recarga y revisa antes de publicar.',
       );
-    return snapshot(req.kind, req.id, saved);
+    return view(req.kind, req.id, saved);
   }
   const draft = current.draft;
   if (!draft) throw new HttpError(409, 'No hay borrador para publicar');
+  guardDesign(req.kind, current.published, draft);
   const fields = validateContent(req.kind, clean(draft));
   preserveVisualExtensions(req.kind, fields, draft);
+  retainDesign(req.kind, current.published, fields);
   await validateReferences(store, req.kind, fields, req.id);
   const pub = current.published;
   if (req.kind === 'page') protectCorePageIdentity(pub, fields);
@@ -493,5 +565,5 @@ export async function executeContent(input: unknown, deps: ContentDependencies):
       : { create: { ...clean(draft), ...fields, _id: req.id, _type: req.kind } },
     { delete: { id: draft._id } },
   ]);
-  return snapshot(req.kind, req.id, await versions(store, req.kind, req.id));
+  return view(req.kind, req.id, await versions(store, req.kind, req.id));
 }

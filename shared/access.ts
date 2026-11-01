@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { templateReleaseSchema } from './platform-contract.ts';
 export const moduleKeys = [
   'content_management',
   'reservations',
@@ -40,6 +41,27 @@ export function canUseContent(
 }
 const restaurantId = z.uuid();
 export const adminRequest = z.discriminatedUnion('operation', [
+  z
+    .object({
+      operation: z.literal('module_activation'),
+      payload: z
+        .object({ restaurant_id: restaurantId, module_key: moduleKey, enabled: z.boolean() })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('select_template'),
+      payload: z
+        .object({
+          restaurant_id: restaurantId,
+          template_key: templateReleaseSchema.shape.template_key,
+          version: templateReleaseSchema.shape.version,
+          expected_revision: z.number().int().nonnegative().nullable(),
+        })
+        .strict(),
+    })
+    .strict(),
   z.object({
     operation: z.literal('restaurant'),
     payload: z.object({

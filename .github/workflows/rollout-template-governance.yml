@@ -1,0 +1,27 @@
+name: Roll out validated platform main
+on:
+  workflow_run:
+    workflows: [Validate Restaurant Platform]
+    branches: [main]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: platform-validated-main-rollout
+  cancel-in-progress: false
+jobs:
+  configure:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_sha == github.sha
+    uses: ./.github/workflows/configure-template-governance.yml
+    with:
+      operation: apply
+      validated_sha: ${{ github.event.workflow_run.head_sha }}
+    secrets:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  deploy:
+    needs: configure
+    uses: ./.github/workflows/deploy-supabase.yml
+    with:
+      validated_sha: ${{ github.event.workflow_run.head_sha }}
+    secrets:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
