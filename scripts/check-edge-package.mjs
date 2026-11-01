@@ -166,7 +166,7 @@ const server = createServer(async (request, response) => {
       assert.ok(
         files
           .get('supabase/functions/_shared/sanity.ts')
-          .includes('assertSanityWriteTarget(target, productionTarget)'),
+          .includes('assertSanityWriteTarget(target, productionTarget, managedProduction)'),
       );
     uploads.set(slug, { metadata, files: [...files.keys()] });
     // No se almacena ni ejecuta el código recibido; solo se valida el multipart.
