@@ -862,3 +862,127 @@ select {
   min-height: 44px;
   padding: 0.25rem;
 }
+
+.provisioning {
+  margin-block: 4rem;
+  padding-block: 2.5rem;
+  border-block: 1px solid var(--line);
+}
+.section-heading {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.8fr) minmax(18rem, 1.2fr);
+  gap: clamp(2rem, 6vw, 7rem);
+  align-items: end;
+  margin-bottom: 2.5rem;
+}
+.section-heading h2 {
+  margin-bottom: 0;
+}
+.provisioning-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+.provisioning-form fieldset {
+  margin: 0;
+  border: 0;
+  background: var(--paper);
+}
+.provisioning-form > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin: 1.5rem;
+}
+.field-group > span {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+.check-row {
+  display: grid;
+  grid-template-columns: 1rem 1fr;
+  gap: 0.65rem;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-block: 0.55rem;
+}
+.check-row input {
+  min-height: auto;
+}
+.provisioning-tracker {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.35fr) minmax(0, 1fr);
+  gap: 2rem;
+  margin-top: 3rem;
+}
+.provisioning-jobs {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.provisioning-jobs button {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 0.35rem;
+  padding: 1rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.provisioning-jobs button.active strong,
+.provisioning-jobs button:hover strong {
+  color: var(--accent);
+}
+.provisioning-jobs span {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.stage-list {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.25rem;
+  margin-block: 1.5rem;
+}
+.stage-list li.current {
+  color: var(--accent);
+  font-weight: 700;
+}
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.dns-instructions {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.dns-instructions table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.dns-instructions th,
+.dns-instructions td {
+  padding: 0.7rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .provisioning-form {
+    grid-template-columns: 1fr;
+  }
+  .section-heading,
+  .provisioning-tracker {
+    grid-template-columns: 1fr;
+  }
+}

@@ -29,7 +29,7 @@ La migración `202611010001_template_governance.sql` revoca la actualización RE
 - La PR de instancia y su CI son obligatorias antes de integrar. El workflow existente de producción valida el snapshot real de Sanity y publica el sitio. No se añade ningún dispatch editorial.
 - La misma evidencia de build incorpora la identidad íntegra del template. La Edge `publications` verifica el OIDC del main registrado y su repository ID, y la base exige una evidencia `ready` idéntica y un informe `succeeded` del mismo run/intento/commit antes de registrar instalación. No basta un formulario, un recibo local, una selección o una build. Repeticiones y callbacks antiguos no hacen retroceder la versión.
 
-El cliente ve la versión instalada/seleccionada y el run verificado en Configuración. El selector solo aparece para Super Admin. La ejecución automatizada de trabajos de aprovisionamiento se implementará en fase 6; la actualización de instancias dispone ya de una herramienta reutilizable y validada, sin incorporar un servicio de flota.
+El cliente ve la versión instalada/seleccionada y el run verificado en Configuración. El selector solo aparece para Super Admin. La fase 6 incorpora el alta integral y conserva la actualización controlada de instancias mediante integridad, build y confirmación OIDC.
 
 ## Despliegue de esta fase
 

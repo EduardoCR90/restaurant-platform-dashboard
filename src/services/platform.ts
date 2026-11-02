@@ -9,6 +9,12 @@ import {
   type SanityProvisioningRequest,
 } from '../../shared/sanity-provisioning';
 import {
+  restaurantProvisioningJob,
+  restaurantProvisioningList,
+  restaurantProvisioningRequest,
+  type RestaurantProvisioningRequest,
+} from '../../shared/restaurant-provisioning';
+import {
   snapshotSchema,
   contentItemSchema,
   discardResultSchema,
@@ -198,6 +204,26 @@ export async function provisionSanity(input: SanityProvisioningRequest) {
   return sanityProvisioningJob.parse(
     await invoke('sanity-provisioning', sanityProvisioningRequest.parse(input)),
   );
+}
+
+export async function provisionRestaurant(input: RestaurantProvisioningRequest) {
+  const parsed = restaurantProvisioningRequest.parse(input);
+  const result = await invoke('restaurant-provisioning', parsed);
+  return parsed.operation === 'list'
+    ? restaurantProvisioningList.parse(result)
+    : restaurantProvisioningJob.parse(result);
+}
+
+export async function loadTemplateCatalog() {
+  const { data, error } = await supabase
+    .from('template_releases')
+    .select(
+      'template_key,version,source_commit,distribution_hash,configuration_contract,content_contract,visual_contract',
+    )
+    .order('template_key')
+    .order('version', { ascending: false });
+  if (error) throw new Error('No se pudo cargar el catálogo de templates');
+  return z.array(templateReleaseSchema).parse(data);
 }
 
 export async function listPublications(restaurantId: string, documentId?: string) {

@@ -22,3 +22,7 @@ import_map = "./functions/deno.json"
 [functions.astro-provisioning]
 verify_jwt = false
 import_map = "./functions/deno.json"
+
+[functions.restaurant-provisioning]
+verify_jwt = false
+import_map = "./functions/deno.json"

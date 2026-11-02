@@ -11,7 +11,7 @@ El flujo exclusivo de Super Admin crea una base editorial independiente para un 
 5. cifra la credencial con AES-256-GCM y la vincula al UUID de integración;
 6. registra `restaurant_integrations` y el estado final en una única transacción.
 
-No crea Studio, repositorio Astro, despliegue, DNS, usuario cliente, membresía, módulos ni selección de template. El contrato de fase 5 sigue siendo la frontera del futuro aprovisionador completo. El restaurante permanece `pending` hasta que esas etapas posteriores se verifiquen. Esta iteración no importa contenido ni escribe documentos de Sanity.
+No crea Studio, repositorio Astro, despliegue, DNS, usuario cliente, membresía, módulos ni selección de template. El [aprovisionador integral](restaurant-provisioning.md) coordina esas etapas y mantiene el restaurante `pending` hasta verificarlas. Esta función no importa contenido ni escribe documentos de Sanity.
 
 El request parcial reutiliza las validaciones de restaurante e integración de `provisioningSpec` (contrato 1) y registra `content_contract=salitre-v1`. Al completarse, sus IDs/proyecto/dataset pueden incorporarse al plan completo de fase 5 sin convertir inputs del cliente en autoridad ni duplicar el modelo.
 

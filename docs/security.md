@@ -59,3 +59,7 @@ El [servicio de fase 6.1](sanity-provisioning.md) exige Super Admin tanto en Edg
 ## Aprovisionamiento Astro
 
 El [servicio de fase 6.2](astro-provisioning.md) vuelve a exigir Super Admin en Edge y SQL. El cliente solo selecciona un trabajo Sanity terminado, release, tema, módulos y dominio solicitado; repositorio, owner, URLs, IDs y endpoints se resuelven en servidor. La credencial GitHub vive solo en secretos Edge. El bootstrap recibe configuración pública con hash, y su callback usa una audiencia OIDC distinta de las publicaciones. Repository ID, workflow main, manifest y commit se verifican antes de registrar Pages. Un repositorio ambiguo nunca se sobrescribe o elimina.
+
+## Alta integral
+
+La [fase 6.3](restaurant-provisioning.md) añade un trabajo agregado inaccesible para usuarios tenant. Solo activa el restaurante y crea la membresía editorial tras comprobar la misma integración en Sanity, Astro, deployment y website. El cliente no obtiene acceso a templates, diseño, módulos o aprovisionadores. Las invitaciones ambiguas se reconcilian por email en Auth antes de repetir y los registros DNS son instrucciones, no cambios remotos.
