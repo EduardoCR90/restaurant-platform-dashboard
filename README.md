@@ -68,3 +68,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Fase 6 · Aprovisionamiento de Sanity
 
 [Servicio, idempotencia, cifrado, recuperación y configuración](docs/sanity-provisioning.md). Solo Super Admin puede crear la base editorial; las pruebas no crean proyectos reales y Salitre permanece intacto.
+
+## Fase 6 · Aprovisionamiento de webs Astro
+
+[Repositorio, instancia versionada, GitHub Pages, OIDC y recuperación](docs/astro-provisioning.md). Continúa un trabajo Sanity ya completado y deja el alta integral para la iteración 3; las pruebas no crean repositorios ni despliegues reales.

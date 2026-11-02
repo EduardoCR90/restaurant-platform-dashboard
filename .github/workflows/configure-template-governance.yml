@@ -39,7 +39,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx vitest run tests/template-governance-db.test.ts tests/sanity-provisioning-db.test.ts tests/editor.test.ts tests/sanity-production-policy.test.ts
+      - run: npx vitest run tests/template-governance-db.test.ts tests/sanity-provisioning-db.test.ts tests/astro-provisioning-db.test.ts tests/editor.test.ts tests/sanity-production-policy.test.ts
       - run: node --test scripts/configure-template-governance.test.mjs
       - name: Apply reviewed additive platform metadata and permission policy
         env:

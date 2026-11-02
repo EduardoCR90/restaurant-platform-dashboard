@@ -18,7 +18,7 @@ No se consulta el antiguo nombre singular `SUPABASE_PUBLISHABLE_KEY`. No se elig
 
 La administración, **después** de comprobar al administrador global, usa `SUPABASE_SECRET_KEYS["default"]` o la heredada `SUPABASE_SERVICE_ROLE_KEY`. Nunca se usa esa clave como fallback del cliente de usuario. No la copies al cliente ni al .env del frontend.
 
-Configura únicamente los nombres personalizados necesarios: `APP_SUPABASE_PUBLISHABLE_KEY` si hace falta, `ALLOWED_ORIGINS` (orígenes exactos separados por coma), `SANITY_TOKENS` y, para invitar, `INVITE_REDIRECT_URL`. El aprovisionamiento de fase 6 añade `SANITY_PROVISIONER_TOKEN`, `SANITY_PROVISIONING_ORGANIZATION_ID`, `APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY` y `APP_INTEGRATION_CREDENTIAL_KEYS`; consulta [su alcance y rotación](sanity-provisioning.md). El ejemplo de Edge no contiene variables personalizadas reservadas que empiecen por `SUPABASE_`. El `.env` del frontend mantiene sus dos variables VITE_ públicas, sin cambios.
+Configura únicamente los nombres personalizados necesarios: `APP_SUPABASE_PUBLISHABLE_KEY` si hace falta, `ALLOWED_ORIGINS` (orígenes exactos separados por coma), `SANITY_TOKENS` y, para invitar, `INVITE_REDIRECT_URL`. El aprovisionamiento de fase 6 añade las claves de [Sanity](sanity-provisioning.md) y las credenciales/identidad de [GitHub y Astro](astro-provisioning.md). El ejemplo de Edge no contiene variables personalizadas reservadas que empiecen por `SUPABASE_`. El `.env` del frontend mantiene sus dos variables VITE_ públicas, sin cambios.
 
 `SANITY_TOKENS` es un objeto JSON privado donde cada clave es el UUID real de una integración y cada valor su token Sanity write, limitado al proyecto/dataset correspondiente. Consulta el UUID en restaurant_integrations después del bootstrap. Configúralo en **Supabase → Edge Functions → Secrets** sin pegarlo en el chat. Rechazamos tokens en configuration JSON: la tabla solo acepta `{"schema":"salitre-v1"}`.
 
@@ -61,6 +61,9 @@ Desde una terminal segura con Supabase CLI 2.122.0 autenticada al proyecto corre
 ```bash
 supabase functions deploy content --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
 supabase functions deploy platform-admin --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
+supabase functions deploy publications --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
+supabase functions deploy sanity-provisioning --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
+supabase functions deploy astro-provisioning --project-ref wanrzgumoamryuybmopa --use-api --no-verify-jwt --import-map supabase/functions/deno.json
 ```
 
 Los imports alcanzan `shared/` desde las funciones. `deno.json` fija dependencias npm. `verify_jwt=false` es intencional para compatibilidad con claves publishable/JWT modernos: cada handler exige Bearer y verifica con `auth.getUser`; no hay rutas de datos sin autenticar. No despliegues una versión que omita esa comprobación. CORS exige ALLOWED_ORIGINS y rechaza por defecto.

@@ -44,6 +44,21 @@ it('verifica firma criptográfica e identidad de un workflow main', async () => 
     repository_id: '123',
   });
 });
+it('acepta el bootstrap únicamente con su audiencia y ruta dedicadas', async () => {
+  const provisioning = {
+    aud: 'restaurant-platform-provisioning',
+    workflow_ref: 'owner/web/.github/workflows/bootstrap-instance.yml@refs/heads/main',
+  };
+  await expect(
+    verifyGithubIdentity(await token(provisioning), jwks, Date.now(), {
+      audience: 'restaurant-platform-provisioning',
+      workflowPath: '.github/workflows/bootstrap-instance.yml',
+    }),
+  ).resolves.toMatchObject({ repository: 'owner/web' });
+  await expect(verifyGithubIdentity(await token(provisioning), jwks)).rejects.toMatchObject({
+    status: 401,
+  });
+});
 it.each([
   { aud: 'wrong' },
   { iss: 'https://attacker.test' },

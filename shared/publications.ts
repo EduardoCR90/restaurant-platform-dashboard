@@ -67,7 +67,7 @@ export const deploymentReportSchema = z
   .strict();
 export const githubClaimsSchema = z.object({
   iss: z.literal('https://token.actions.githubusercontent.com'),
-  aud: z.literal('restaurant-platform-publications'),
+  aud: z.string().min(1).max(200),
   exp: z.number(),
   iat: z.number(),
   nbf: z.number().optional(),
