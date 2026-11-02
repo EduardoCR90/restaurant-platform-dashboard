@@ -244,7 +244,9 @@ try {
     server.once('error', reject);
     server.listen(8080, 'localhost', accept);
   });
-  const version = (await run(['--version'])).trim();
+  // The pinned CLI may append an update notice to stderr; `run` captures both streams.
+  // Validate the executable's first line without depending on the mutable latest release.
+  const version = (await run(['--version'])).split(/\r?\n/, 1)[0].trim();
   assert.equal(version, '2.122.0');
   for (const slug of Object.keys(expected)) {
     // supabase-local es un perfil incorporado en esta versión, URL fija http://localhost:8080.
