@@ -37,7 +37,7 @@ El módulo de contenido llama a Edge, que verifica la identidad en Auth, ejecuta
 
 ## Nuevos restaurantes
 
-La [fase 6.1](sanity-provisioning.md) automatiza la base editorial: un Super Admin inicia una solicitud idempotente, el backend crea un proyecto Sanity dedicado y `production`, cifra su token y registra restaurante/integración. El restaurante queda pendiente. Asignar cliente, template, módulos, dominio y desplegar la web pertenece a las siguientes iteraciones. No se duplica React. Otro contrato editorial requiere su adaptador/versionado y pruebas; no se afirma compatibilidad automática con cualquier CMS.
+La [fase 6.1](sanity-provisioning.md) automatiza la base editorial. La [fase 6.2](astro-provisioning.md) continúa únicamente un trabajo Sanity completado, genera una instancia desde el template inmutable, verifica su manifest por GitHub API/OIDC, habilita Pages y registra el destino. El restaurante queda pendiente. Asignar cliente y completar el alta pertenece a la iteración 3. No se duplica React ni el mantenimiento del renderer: cada instancia conserva configuración, locks y la distribución verificada del package común.
 
 Las webs públicas pueden conservar diseños propios siempre que consuman este contrato común. Salitre y Studio no han sido modificados en esta fase.
 

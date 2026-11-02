@@ -55,3 +55,7 @@ La [consolidación de fase 5](template-governance.md) sustituye la antigua activ
 ## Aprovisionamiento Sanity
 
 El [servicio de fase 6.1](sanity-provisioning.md) exige Super Admin tanto en Edge como en una RPC `service_role`. Los clientes no pueden leer trabajos ni ciphertext. Las credenciales nuevas se cifran con AES-256-GCM y claves versionadas que solo existen en secretos Edge; Salitre conserva su mapa heredado. Los POST no se reintentan automáticamente y cualquier token de resultado incierto se detiene en revisión manual.
+
+## Aprovisionamiento Astro
+
+El [servicio de fase 6.2](astro-provisioning.md) vuelve a exigir Super Admin en Edge y SQL. El cliente solo selecciona un trabajo Sanity terminado, release, tema, módulos y dominio solicitado; repositorio, owner, URLs, IDs y endpoints se resuelven en servidor. La credencial GitHub vive solo en secretos Edge. El bootstrap recibe configuración pública con hash, y su callback usa una audiencia OIDC distinta de las publicaciones. Repository ID, workflow main, manifest y commit se verifican antes de registrar Pages. Un repositorio ambiguo nunca se sobrescribe o elimina.

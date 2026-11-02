@@ -40,6 +40,7 @@ const expected = {
     'supabase/functions/_shared/auth.ts',
     'supabase/functions/_shared/http.ts',
     'supabase/functions/_shared/environment.ts',
+    'supabase/functions/_shared/github-jwks.ts',
     'shared/github-oidc.ts',
     'shared/publications.ts',
   ],
@@ -75,6 +76,22 @@ const expected = {
     'shared/visual.ts',
     'shared/platform-contract.ts',
     'shared/editorial-permissions.ts',
+  ],
+  'astro-provisioning': [
+    'supabase/functions/astro-provisioning/index.ts',
+    'supabase/functions/_shared/auth.ts',
+    'supabase/functions/_shared/environment.ts',
+    'supabase/functions/_shared/http.ts',
+    'supabase/functions/_shared/github-jwks.ts',
+    'supabase/functions/_shared/github-management.ts',
+    'supabase/functions/_shared/astro-provisioning-request.ts',
+    'supabase/functions/_shared/astro-provisioning-service.ts',
+    'shared/astro-provisioning.ts',
+    'shared/github-oidc.ts',
+    'shared/publications.ts',
+    'shared/platform-contract.ts',
+    'shared/visual.ts',
+    'shared/editor-service.ts',
   ],
 };
 const uploads = new Map();
@@ -178,7 +195,9 @@ const server = createServer(async (request, response) => {
             ? '00000000-0000-4000-8000-000000000001'
             : slug === 'sanity-provisioning'
               ? '00000000-0000-4000-8000-000000000003'
-              : '00000000-0000-4000-8000-000000000002',
+              : slug === 'astro-provisioning'
+                ? '00000000-0000-4000-8000-000000000004'
+                : '00000000-0000-4000-8000-000000000002',
         slug,
         name: slug,
         status: 'ACTIVE',
@@ -231,7 +250,7 @@ try {
     );
   }
   assert.deepEqual(requestErrors, []);
-  assert.equal(uploads.size, 4);
+  assert.equal(uploads.size, 5);
   console.log(
     'Sin contacto con Supabase real, sin despliegue y sin escrituras de contenido o base de datos.',
   );

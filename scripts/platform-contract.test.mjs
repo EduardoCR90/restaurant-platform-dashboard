@@ -7,7 +7,7 @@ test('portable platform contract matches the immutable template release', async 
   const root = new URL('../', import.meta.url);
   const lock = JSON.parse(await readFile(new URL('platform-contract.lock.json', root), 'utf8'));
   assert.equal(lock.repository, 'EduardoCR90/restaurant-astro-template');
-  assert.equal(lock.version, '0.3.0');
+  assert.equal(lock.version, '0.4.0');
   assert.match(lock.commit, /^[a-f0-9]{40}$/);
   assert.equal(lock.source, 'src/types/platform.ts');
   assert.equal(lock.file, 'shared/platform-contract.ts');

@@ -1,8 +1,8 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "repository": "EduardoCR90/restaurant-astro-template",
-  "commit": "069dcf48778d9f2eb18ca7176b4da97fd60d5237",
+  "commit": "a2c059b77813e32dba8418f8294e1faecee51b76",
   "source": "src/types/platform.ts",
   "file": "shared/platform-contract.ts",
-  "sha256": "d012175aa8739e5b952695dd38b846b77e1c4b076945269b52e860de712b66da"
+  "sha256": "4590da64560fa6980fbac02f89c0c3614dca63987fda3adf66517ade988ae2b4"
 }

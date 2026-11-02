@@ -50,7 +50,7 @@ const origin = z.url().refine((value) => {
     !url.hash
   );
 });
-const moduleNames = [
+export const moduleNames = [
   "content_management",
   "reservations",
   "staff_scheduling",
@@ -58,6 +58,14 @@ const moduleNames = [
   "events",
   "analytics",
 ] as const;
+export const moduleConfigurationSchema = z
+  .object({
+    key: z.enum(moduleNames),
+    granted: z.boolean(),
+    enabled: z.boolean(),
+  })
+  .strict()
+  .refine((item) => !item.enabled || item.granted, "Activation requires entitlement");
 export const provisioningSpec = z
   .object({
     contract_version: z.literal(1),
@@ -94,13 +102,7 @@ export const provisioningSpec = z
     visual: storedThemeSchema,
     modules: z
       .array(
-        z
-          .object({
-            key: z.enum(moduleNames),
-            granted: z.boolean(),
-            enabled: z.boolean(),
-          })
-          .strict(),
+        moduleConfigurationSchema,
       )
       .max(moduleNames.length)
       .refine(

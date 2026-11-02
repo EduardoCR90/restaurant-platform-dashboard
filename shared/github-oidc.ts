@@ -7,6 +7,13 @@ export async function verifyGithubIdentity(
   token: string,
   keys: { keys: (JsonWebKey & { kid?: string })[] },
   now = Date.now(),
+  policy: {
+    audience: string;
+    workflowPath: `.github/workflows/${string}.yml`;
+  } = {
+    audience: 'restaurant-platform-publications',
+    workflowPath: '.github/workflows/deploy.yml',
+  },
 ): Promise<GithubClaims> {
   try {
     if (token.length > 16000) throw new Error();
@@ -43,10 +50,11 @@ export async function verifyGithubIdentity(
       claims.exp <= seconds ||
       claims.iat > seconds + 30 ||
       claims.iat < seconds - 600 ||
-      (claims.nbf ?? 0) > seconds + 30
+      (claims.nbf ?? 0) > seconds + 30 ||
+      claims.aud !== policy.audience
     )
       throw new Error();
-    if (claims.workflow_ref !== `${claims.repository}/.github/workflows/deploy.yml@refs/heads/main`)
+    if (claims.workflow_ref !== `${claims.repository}/${policy.workflowPath}@refs/heads/main`)
       throw new Error();
     return claims;
   } catch {

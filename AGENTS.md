@@ -24,3 +24,5 @@
 - Fase 5 cerrada: plantilla/versiones y módulos son exclusivos de Super Admin. Preservar guardas editoriales en save/create/publish/restore/discard y versiones instaladas solo tras ready+succeeded OIDC coincidentes. Contrato portable y catálogo inmutables; ver docs/template-governance.md. No ejecutar el aprovisionamiento hasta fase 6.
 
 - Fase 6.1: el aprovisionamiento Sanity es exclusivo de Super Admin y usa trabajos idempotentes, leases y credenciales AES-GCM. No reintentar automáticamente tokens ambiguos, exponer respuestas del proveedor ni activar el restaurante. Salitre sigue en `SANITY_TOKENS`; ver docs/sanity-provisioning.md.
+
+- Fase 6.2: Astro continúa solo trabajos Sanity completados. Repositorio/URL/IDs se derivan en servidor, el bootstrap usa especificación pública con hash y OIDC dedicado, y un recurso ambiguo pasa a revisión manual. No borrar o reinicializar repositorios, no aceptar scripts/tokens del cliente y no marcar versión instalada sin ready+succeeded del workflow Pages registrado; ver docs/astro-provisioning.md.

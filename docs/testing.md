@@ -7,6 +7,7 @@
 - **RTL:** login, error, recuperación, cambio de contraseña, logout, rutas privadas, perfil suspendido, selección y orden de bloques. SDK sustituido solo en tests.
 - **Playwright:** navegador Chromium, rutas privadas/recuperación móvil y selección → edición → guardado → publicación con endpoints Auth/REST/Edge interceptados. La UI de producto sigue usando servicios reales.
 - **Build/tipos/lint:** React y Edge se comprueban por separado. CI también usa Deno real, no el shim local de tsc.
+- **Aprovisionamiento:** los proveedores Sanity/GitHub se sustituyen; PGlite ejecuta trabajos, leases, permisos y aislamiento. El template crea y compila una instancia sintética. No se generan repositorios, proyectos o Pages reales.
 
 Consulta la ejecución enlazada en la PR para resultados exactos de CI. No se han ejecutado migraciones, invitaciones, escrituras editoriales ni despliegues remotos. No se acredita login real, SMTP real, publicación real desde Edge o reconstrucción pública por tests con mocks.
 

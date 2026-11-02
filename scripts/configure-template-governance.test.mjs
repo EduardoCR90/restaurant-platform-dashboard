@@ -11,15 +11,26 @@ const provisioningReady = {
   complete_rpc: true,
   fail_rpc: true,
 };
+const astroReady = {
+  jobs: true,
+  claim_rpc: true,
+  get_rpc: true,
+  checkpoint_rpc: true,
+  await_rpc: true,
+  confirm_rpc: true,
+  complete_rpc: true,
+  fail_rpc: true,
+};
 test('inspect is read-only and refuses a partial schema', async () => {
   const calls = [];
   const result = await configureTemplateGovernance('inspect', async (path, options) => {
     calls.push({ path, options });
-    return calls.length === 1 ? [ready] : [provisioningReady];
+    return calls.length === 1 ? [ready] : calls.length === 2 ? [provisioningReady] : [astroReady];
   });
   assert.equal(result.schemaReady, true);
   assert.equal(result.provisioningReady, true);
-  assert.equal(calls.length, 2);
+  assert.equal(result.astroProvisioningReady, true);
+  assert.equal(calls.length, 3);
   assert.equal(calls[0].options.body.read_only, true);
   await assert.rejects(
     configureTemplateGovernance('apply', async () => [{ ...ready, builds: false }]),
@@ -32,12 +43,20 @@ test('apply checks immutable release identity and module/RPC privilege protectio
     queries.push(options.body);
     if (queries.length === 1) return [ready];
     if (queries.length === 2) return [provisioningReady];
+    if (queries.length === 3) return [astroReady];
     if (options.body.read_only)
-      return [{ modules_protected: true, admin_protected: true, provisioning_protected: true }];
+      return [
+        {
+          modules_protected: true,
+          admin_protected: true,
+          provisioning_protected: true,
+          astro_provisioning_protected: true,
+        },
+      ];
     return [];
   });
   assert.equal(result.status, 'metadata-permission-and-provisioning-policy-ready');
-  assert.ok(queries[2].query.includes('Conflicting immutable release'));
+  assert.ok(queries.some((query) => query.query.includes('Conflicting immutable release')));
   assert.ok(
     !queries.some((q) =>
       /update public.restaurant_integrations|bootstrap|delete|truncate/i.test(q.query),
@@ -53,11 +72,43 @@ test('apply installs the reviewed provisioning migration only when the whole sch
     if (queries.length === 1) return [ready];
     if (queries.length === 2)
       return [Object.fromEntries(Object.keys(provisioningReady).map((key) => [key, false]))];
+    if (queries.length === 3) return [astroReady];
     if (options.body.read_only)
-      return [{ modules_protected: true, admin_protected: true, provisioning_protected: true }];
+      return [
+        {
+          modules_protected: true,
+          admin_protected: true,
+          provisioning_protected: true,
+          astro_provisioning_protected: true,
+        },
+      ];
     return [];
   });
   assert.ok(queries.some((query) => query.query.includes('sanity_provisioning_jobs')));
   assert.ok(queries.some((query) => query.query.includes('integration_credentials')));
+  assert.ok(!queries.some((query) => /delete|truncate|drop table/i.test(query.query)));
+});
+
+test('apply installs the reviewed Astro provisioning migration only when fully absent', async () => {
+  const queries = [];
+  await configureTemplateGovernance('apply', async (_path, options) => {
+    queries.push(options.body);
+    if (queries.length === 1) return [ready];
+    if (queries.length === 2) return [provisioningReady];
+    if (queries.length === 3)
+      return [Object.fromEntries(Object.keys(astroReady).map((key) => [key, false]))];
+    if (options.body.read_only)
+      return [
+        {
+          modules_protected: true,
+          admin_protected: true,
+          provisioning_protected: true,
+          astro_provisioning_protected: true,
+        },
+      ];
+    return [];
+  });
+  assert.ok(queries.some((query) => query.query.includes('astro_provisioning_jobs')));
+  assert.ok(queries.some((query) => query.query.includes('admin_confirm_astro_source')));
   assert.ok(!queries.some((query) => /delete|truncate|drop table/i.test(query.query)));
 });

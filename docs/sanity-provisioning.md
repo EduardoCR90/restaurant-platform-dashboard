@@ -58,4 +58,4 @@ Antes de la primera creación real:
 4. verifica el proyecto, `production`, la integración cifrada y el restaurante `pending`;
 5. no repitas una solicitud `manual_review`: inspecciona primero la etiqueta `restaurant-platform-<integration UUID>`.
 
-Los tests sustituyen HTTP, tokens y cifrado con datos sintéticos. CI aplica PostgreSQL en memoria y empaqueta las cuatro Edge Functions contra una API local. Ninguna prueba consulta o crea proyectos reales. Integrar la PR despliega código y esquema aditivo; no ejecuta el endpoint de aprovisionamiento.
+Los tests sustituyen HTTP, tokens y cifrado con datos sintéticos. CI aplica PostgreSQL en memoria y empaqueta las Edge Functions contra una API local. Ninguna prueba consulta o crea proyectos reales. Integrar la PR despliega código y esquema aditivo; no ejecuta el endpoint de aprovisionamiento.
