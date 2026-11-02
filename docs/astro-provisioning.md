@@ -2,7 +2,7 @@
 
 ## Flujo preparado
 
-`astro-provisioning` continúa un trabajo de Sanity completado y crea una web independiente sin aceptar identificadores de proveedor desde el navegador:
+`astro-provisioning` continúa un trabajo de Sanity completado y crea una web independiente sin aceptar identificadores de proveedor desde el navegador. La [iteración 3](restaurant-provisioning.md) lo coordina desde el alta integral:
 
 1. exige un Super Admin activo en Auth, Edge y SQL;
 2. resuelve el restaurante, integración Sanity y release aprobada desde Supabase;
@@ -14,7 +14,7 @@
 8. habilita Pages con `build_type=workflow` y registra `website_deployments`, versión deseada, módulos y dominio todavía no verificado;
 9. el workflow oficial de Pages informa build y despliegue mediante el seguimiento OIDC existente. Solo sus evidencias `ready` y `succeeded` registran la versión instalada.
 
-El restaurante permanece `pending`: asignar cliente, sembrar contenido y activar el alta completa corresponde a la iteración 3. Esta fase no crea ningún restaurante, proyecto, repositorio o dominio por sí sola; las pruebas sustituyen GitHub y usan PostgreSQL local.
+El restaurante permanece `pending` al terminar esta función; el aprovisionador integral asigna el cliente y lo activa después de verificar el resto del recorrido. Esta función no crea ningún recurso por sí sola hasta recibir una solicitud autorizada; las pruebas sustituyen GitHub y usan PostgreSQL local.
 
 ## Idempotencia y recuperación
 
@@ -53,4 +53,4 @@ El bootstrap necesita `contents:write`, `actions:write` e `id-token:write` únic
 - El template materializa, instala y compila una instancia sintética de cuatro páginas con base de GitHub Pages.
 - El empaquetado de Supabase CLI se valida contra localhost; no contacta con Supabase ni GitHub reales.
 
-Antes de la primera creación controlada, configura los secretos, habilita el modo template, verifica el plan de Pages y usa la iteración 3 para reunir en una sola solicitud el alta de Sanity, la selección visual/módulos y esta etapa Astro.
+Antes de la primera creación controlada, configura los secretos, mantén habilitado el modo template, verifica el plan de Pages y usa el panel integral para reunir en una sola solicitud el alta de Sanity, la selección visual/módulos y esta etapa Astro.

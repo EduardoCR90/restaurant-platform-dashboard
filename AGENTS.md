@@ -26,3 +26,5 @@
 - Fase 6.1: el aprovisionamiento Sanity es exclusivo de Super Admin y usa trabajos idempotentes, leases y credenciales AES-GCM. No reintentar automáticamente tokens ambiguos, exponer respuestas del proveedor ni activar el restaurante. Salitre sigue en `SANITY_TOKENS`; ver docs/sanity-provisioning.md.
 
 - Fase 6.2: Astro continúa solo trabajos Sanity completados. Repositorio/URL/IDs se derivan en servidor, el bootstrap usa especificación pública con hash y OIDC dedicado, y un recurso ambiguo pasa a revisión manual. No borrar o reinicializar repositorios, no aceptar scripts/tokens del cliente y no marcar versión instalada sin ready+succeeded del workflow Pages registrado; ver docs/astro-provisioning.md.
+
+- Fase 6.3: `restaurant-provisioning` coordina los dos trabajos anteriores, invitación y activación. Mantener UUID hijos derivados, contrato inmutable, leases y reintento explícito. No invitar antes de confirmar Astro/Pages, no activar sin evidencia cruzada y no conceder al cliente acceso a jobs, templates, diseño o módulos; ver docs/restaurant-provisioning.md.

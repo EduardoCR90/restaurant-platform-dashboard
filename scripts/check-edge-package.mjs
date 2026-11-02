@@ -93,6 +93,21 @@ const expected = {
     'shared/visual.ts',
     'shared/editor-service.ts',
   ],
+  'restaurant-provisioning': [
+    'supabase/functions/restaurant-provisioning/index.ts',
+    'supabase/functions/_shared/auth.ts',
+    'supabase/functions/_shared/environment.ts',
+    'supabase/functions/_shared/http.ts',
+    'supabase/functions/_shared/restaurant-provisioning-request.ts',
+    'supabase/functions/_shared/restaurant-provisioning-service.ts',
+    'supabase/functions/_shared/astro-provisioning-request.ts',
+    'shared/restaurant-provisioning.ts',
+    'shared/sanity-provisioning.ts',
+    'shared/astro-provisioning.ts',
+    'shared/platform-contract.ts',
+    'shared/visual.ts',
+    'shared/editor-service.ts',
+  ],
 };
 const uploads = new Map();
 const requestErrors = [];
@@ -197,7 +212,9 @@ const server = createServer(async (request, response) => {
               ? '00000000-0000-4000-8000-000000000003'
               : slug === 'astro-provisioning'
                 ? '00000000-0000-4000-8000-000000000004'
-                : '00000000-0000-4000-8000-000000000002',
+                : slug === 'restaurant-provisioning'
+                  ? '00000000-0000-4000-8000-000000000005'
+                  : '00000000-0000-4000-8000-000000000002',
         slug,
         name: slug,
         status: 'ACTIVE',
@@ -227,7 +244,9 @@ try {
     server.once('error', reject);
     server.listen(8080, 'localhost', accept);
   });
-  const version = (await run(['--version'])).trim();
+  // The pinned CLI may append an update notice to stderr; `run` captures both streams.
+  // Validate the executable's first line without depending on the mutable latest release.
+  const version = (await run(['--version'])).split(/\r?\n/, 1)[0].trim();
   assert.equal(version, '2.122.0');
   for (const slug of Object.keys(expected)) {
     // supabase-local es un perfil incorporado en esta versión, URL fija http://localhost:8080.
@@ -250,7 +269,7 @@ try {
     );
   }
   assert.deepEqual(requestErrors, []);
-  assert.equal(uploads.size, 5);
+  assert.equal(uploads.size, 6);
   console.log(
     'Sin contacto con Supabase real, sin despliegue y sin escrituras de contenido o base de datos.',
   );

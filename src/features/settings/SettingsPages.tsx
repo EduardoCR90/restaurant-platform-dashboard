@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { updateName, updateProfile, supabase, adminOperation } from '../../services/platform';
 import { Feedback } from '../../components/Feedback';
 import { adminRequest, roles, moduleKeys } from '../../../shared/access';
-import { SanityProvisioningPanel } from './SanityProvisioningPanel';
+import { RestaurantProvisioningPanel } from './RestaurantProvisioningPanel';
 export function SettingsPage() {
   const ctx = useRestaurant();
   const [name, setName] = useState(ctx.restaurant?.name || '');
@@ -208,7 +208,7 @@ export function AdminPage() {
           </div>
         ))}
       </div>
-      <SanityProvisioningPanel />
+      <RestaurantProvisioningPanel />
       <form className="narrow-form" onSubmit={submit}>
         <label>
           Operación

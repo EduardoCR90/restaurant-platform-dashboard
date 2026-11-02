@@ -459,39 +459,87 @@ test('client Admin has editorial controls but cannot change design, modules or t
   await expect(page.getByLabel('Versión aprobada del template')).toHaveCount(0);
   await page.goto('/administration');
   await expect(page.getByRole('alert')).toHaveText('Requiere Super Admin.');
-  await expect(page.getByRole('heading', { name: 'Nuevo proyecto Sanity' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Crear un restaurante' })).toHaveCount(0);
 });
 
-test('Super Admin inicia Sanity con contrato mínimo y sin credenciales del navegador', async ({
+test('Super Admin prepara el alta integral sin credenciales ni IDs externos en el navegador', async ({
   page,
 }) => {
   await mockedWorkspace(page, true);
+  const release = {
+    template_key: 'restaurant-editorial',
+    version: '0.4.0',
+    source_commit: 'a'.repeat(40),
+    distribution_hash: 'b'.repeat(64),
+    configuration_contract: 1,
+    content_contract: 'salitre-v1',
+    visual_contract: 2,
+  };
+  await page.route(`https://${project}.supabase.co/rest/v1/template_releases*`, (route) =>
+    route.fulfill({ json: [release] }),
+  );
   await page.route(
-    `https://${project}.supabase.co/functions/v1/sanity-provisioning`,
+    `https://${project}.supabase.co/functions/v1/restaurant-provisioning`,
     async (route) => {
       const request = route.request().postDataJSON();
+      if (request.operation === 'list') {
+        await route.fulfill({ json: [] });
+        return;
+      }
       expect(request).toMatchObject({
         operation: 'start',
-        payload: { name: 'Casa Ensayo', slug: 'casa-ensayo', dataset: 'production' },
+        payload: {
+          name: 'Burger House',
+          slug: 'burger-house',
+          client_email: 'burger@example.com',
+          template: { template_key: 'restaurant-editorial', version: '0.4.0' },
+          visual: { preset: 'casual' },
+          domain: { hostname: 'www.burger-house.example', mode: 'subdomain' },
+        },
       });
       expect(request.payload.request_id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
-      expect(JSON.stringify(request)).not.toMatch(/token|organization|template|domain|email/i);
+      expect(JSON.stringify(request)).not.toMatch(/token|project_id|repository|organization/i);
       await route.fulfill({
         json: {
           request_id: request.payload.request_id,
+          name: 'Burger House',
+          slug: 'burger-house',
+          client_email: 'burger@example.com',
+          client_role: 'restaurant_owner',
+          template: request.payload.template,
+          visual: request.payload.visual,
+          modules: request.payload.modules,
+          domain: request.payload.domain,
+          sanity_request_id: '00000000-0000-4000-8000-000000000402',
+          astro_request_id: '00000000-0000-4000-8000-000000000403',
           restaurant_id: restaurantId,
           integration_id: '00000000-0000-4000-8000-000000000404',
-          name: 'Casa Ensayo',
-          slug: 'casa-ensayo',
-          project_id: 'r1234567890abcde',
-          dataset: 'production',
+          invitation_id: '00000000-0000-4000-8000-000000000405',
+          client_user_id: '00000000-0000-4000-8000-000000000406',
+          repository: 'EduardoCR90/burger-house-restaurant',
+          site_url: 'https://eduardocr90.github.io/burger-house-restaurant/',
           status: 'succeeded',
           stage: 'completed',
           attempt_count: 1,
           retryable: false,
           error_code: null,
+          sanity: null,
+          astro: null,
+          dns: {
+            hostname: 'www.burger-house.example',
+            mode: 'subdomain',
+            target: 'eduardocr90.github.io',
+            status: 'dns_pending',
+            records: [
+              {
+                type: 'CNAME',
+                name: 'www.burger-house.example',
+                value: 'eduardocr90.github.io',
+              },
+            ],
+          },
           created_at: '2026-11-01T00:00:00Z',
           updated_at: '2026-11-01T00:00:01Z',
         },
@@ -499,9 +547,14 @@ test('Super Admin inicia Sanity con contrato mínimo y sin credenciales del nave
     },
   );
   await page.goto('/administration');
-  await page.getByLabel('Nombre del restaurante').fill('Casa Ensayo');
-  await page.getByLabel('Slug interno').fill('casa-ensayo');
-  await page.getByRole('button', { name: 'Crear base editorial' }).click();
-  await expect(page.getByText('Estado: succeeded')).toBeVisible();
-  await expect(page.getByText(/Proyecto: r1234567890abcde/)).toBeVisible();
+  const provisioning = page.getByRole('region', { name: 'Crear un restaurante' });
+  await provisioning.getByLabel('Nombre').fill('Burger House');
+  await provisioning.getByLabel('Slug interno').fill('burger-house');
+  await provisioning.getByLabel('Email del cliente').fill('burger@example.com');
+  await provisioning.getByLabel('Dirección visual').selectOption('casual');
+  await provisioning.getByLabel('Dominio solicitado').fill('www.burger-house.example');
+  await provisioning.getByRole('button', { name: 'Preparar restaurante completo' }).click();
+  await expect(page.getByText('Alta completada', { exact: true })).toBeVisible();
+  await expect(page.getByText('EduardoCR90/burger-house-restaurant')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'eduardocr90.github.io' })).toBeVisible();
 });

@@ -72,3 +72,7 @@ No pegues tokens en el chat. Los secretos solo se configuran en Supabase/GitHub/
 ## Fase 6 · Aprovisionamiento de webs Astro
 
 [Repositorio, instancia versionada, GitHub Pages, OIDC y recuperación](docs/astro-provisioning.md). Continúa un trabajo Sanity ya completado y deja el alta integral para la iteración 3; las pruebas no crean repositorios ni despliegues reales.
+
+## Fase 6 · Alta integral
+
+[Panel Super Admin, coordinación, invitaciones, seguimiento y DNS](docs/restaurant-provisioning.md). Une Sanity y Astro en una solicitud persistente; la activación real queda bloqueada hasta configurar las credenciales externas.

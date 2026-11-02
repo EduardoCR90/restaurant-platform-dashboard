@@ -37,7 +37,7 @@ El módulo de contenido llama a Edge, que verifica la identidad en Auth, ejecuta
 
 ## Nuevos restaurantes
 
-La [fase 6.1](sanity-provisioning.md) automatiza la base editorial. La [fase 6.2](astro-provisioning.md) continúa únicamente un trabajo Sanity completado, genera una instancia desde el template inmutable, verifica su manifest por GitHub API/OIDC, habilita Pages y registra el destino. El restaurante queda pendiente. Asignar cliente y completar el alta pertenece a la iteración 3. No se duplica React ni el mantenimiento del renderer: cada instancia conserva configuración, locks y la distribución verificada del package común.
+La [fase 6.1](sanity-provisioning.md) automatiza la base editorial y la [fase 6.2](astro-provisioning.md) genera una instancia desde el template inmutable, verifica su manifest por GitHub API/OIDC y habilita Pages. La [fase 6.3](restaurant-provisioning.md) las coordina desde un único panel, invita al cliente y activa el tenant solo después de verificar ambas etapas. No se duplica React ni el mantenimiento del renderer: cada instancia conserva configuración, locks y la distribución verificada del package común.
 
 Las webs públicas pueden conservar diseños propios siempre que consuman este contrato común. Salitre y Studio no han sido modificados en esta fase.
 
