@@ -7,10 +7,6 @@ on:
         description: Existing provisioning UUID or Edge log request UUID
         required: true
         type: string
-      restaurant_slug:
-        description: Exact internal restaurant slug used only if request_id is from Edge logs
-        required: true
-        type: string
       failed_at_utc:
         description: Failure timestamp in ISO UTC used for a bounded fallback lookup
         required: true
@@ -41,6 +37,5 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PROVISIONING_REQUEST_ID: ${{ inputs.request_id }}
-          PROVISIONING_RESTAURANT_SLUG: ${{ inputs.restaurant_slug }}
           PROVISIONING_FAILED_AT_UTC: ${{ inputs.failed_at_utc }}
         run: node scripts/diagnose-provisioning.mjs

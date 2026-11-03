@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 
 const project = 'wanrzgumoamryuybmopa';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const requiredSanitySecrets = [
   'SANITY_PROVISIONER_TOKEN',
   'SANITY_PROVISIONING_ORGANIZATION_ID',
@@ -16,10 +15,9 @@ export function diagnosticQuery(requestId, correlation) {
   assert.match(requestId, uuid);
   const fallback = correlation
     ? (() => {
-        assert.match(correlation.restaurantSlug, slugPattern);
         const failedAt = new Date(correlation.failedAtUtc);
         assert.ok(Number.isFinite(failedAt.getTime()));
-        return ` or (r.slug='${correlation.restaurantSlug}' and r.updated_at between '${failedAt.toISOString()}'::timestamptz-interval '10 minutes' and '${failedAt.toISOString()}'::timestamptz+interval '10 minutes')`;
+        return ` or (r.status='failed' and r.stage='sanity' and r.error_code='configuration' and r.updated_at between '${failedAt.toISOString()}'::timestamptz-interval '10 minutes' and '${failedAt.toISOString()}'::timestamptz+interval '10 minutes')`;
       })()
     : '';
   return `select r.request_id,r.status,r.stage,r.error_code,r.retryable,r.attempt_count,r.sanity_request_id,r.updated_at,
@@ -27,8 +25,8 @@ export function diagnosticQuery(requestId, correlation) {
  from public.restaurant_provisioning_jobs r
  left join public.sanity_provisioning_jobs s on s.request_id=r.sanity_request_id
  where r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid${fallback}
- order by case when r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid then 0 else 1 end,r.updated_at desc
- limit 2`;
+ order by case when r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid then 0 else 1 end,abs(extract(epoch from r.updated_at-'${correlation ? new Date(correlation.failedAtUtc).toISOString() : '1970-01-01T00:00:00.000Z'}'::timestamptz))
+ limit 1`;
 }
 
 export class DiagnosticFailure extends Error {
@@ -126,7 +124,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       process.env.PROVISIONING_REQUEST_ID,
       managementApi(process.env.SUPABASE_ACCESS_TOKEN),
       {
-        restaurantSlug: process.env.PROVISIONING_RESTAURANT_SLUG,
         failedAtUtc: process.env.PROVISIONING_FAILED_AT_UTC,
       },
     );
