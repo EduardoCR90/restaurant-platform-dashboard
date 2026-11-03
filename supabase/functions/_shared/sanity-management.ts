@@ -3,16 +3,20 @@ import { HttpError } from '../../../shared/editor-service.ts';
 import type { SanityProvisioningErrorCode } from '../../../shared/sanity-provisioning.ts';
 import type { EnvironmentReader } from './environment.ts';
 
-const projectMember = z.object({
-  id: z.string().min(1),
-  roles: z.array(z.object({ name: z.string().min(1) }).passthrough()).default([]),
-  isRobot: z.boolean().optional(),
-});
 const project = z.object({
   id: z.string().regex(/^[a-z0-9]{5,16}$/),
   displayName: z.string(),
   organizationId: z.string().nullable(),
-  members: z.array(projectMember).optional(),
+});
+const accessMembership = z.object({
+  resourceType: z.string().min(1),
+  resourceId: z.string().min(1),
+  roleNames: z.array(z.string().min(1)),
+  resourceUserId: z.string().min(1).nullable().optional(),
+});
+const accessUser = z.object({
+  sanityUserId: z.string().min(1),
+  memberships: z.array(accessMembership),
 });
 const dataset = z.object({ name: z.string(), aclMode: z.string() });
 const tokenMetadata = z.object({ id: z.string().min(1), label: z.string() });
@@ -26,6 +30,7 @@ export class SanityManagementError extends Error {
     public readonly code: SanityProvisioningErrorCode,
     public readonly retryable: boolean,
     public readonly ambiguous = false,
+    public readonly diagnostic?: 'incomplete_admin_response',
   ) {
     super('Sanity management request failed');
   }
@@ -59,8 +64,15 @@ export function sanityManagement(
   configuration: { token: string; organizationId: string; expectedAdministratorId: string },
   fetcher: typeof fetch = fetch,
 ) {
-  const base = 'https://api.sanity.io/v2021-06-07';
-  async function request(method: string, path: string, body?: unknown, allowNotFound = false) {
+  const projectsBase = 'https://api.sanity.io/v2021-06-07';
+  const accessBase = 'https://api.sanity.io/v2025-07-11';
+  async function request(
+    method: string,
+    path: string,
+    body?: unknown,
+    allowNotFound = false,
+    base = projectsBase,
+  ) {
     let response: Response;
     try {
       response = await fetcher(base + path, {
@@ -87,10 +99,31 @@ export function sanityManagement(
   return Object.freeze({
     organizationId: configuration.organizationId,
     expectedAdministratorId: configuration.expectedAdministratorId,
-    async getProject(id: string, includeMembers = false) {
-      const suffix = includeMembers ? '?includeMembers=true' : '';
-      const value = await request('GET', `/projects/${id}${suffix}`, undefined, true);
+    async getProject(id: string) {
+      const value = await request('GET', `/projects/${id}`, undefined, true);
       return value === null ? null : project.parse(value);
+    },
+    async getProjectUser(projectId: string, sanityUserId: string) {
+      const value = await request(
+        'GET',
+        `/access/project/${encodeURIComponent(projectId)}/users/${encodeURIComponent(sanityUserId)}?includeImpliedRoles=true`,
+        undefined,
+        true,
+        accessBase,
+      );
+      if (value === null) return null;
+      try {
+        return accessUser.parse(value);
+      } catch (error) {
+        if (error instanceof z.ZodError)
+          throw new SanityManagementError(
+            'provider_response',
+            false,
+            false,
+            'incomplete_admin_response',
+          );
+        throw error;
+      }
     },
     async createProject(displayName: string) {
       try {

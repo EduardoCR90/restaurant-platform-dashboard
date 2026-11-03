@@ -55,6 +55,15 @@ export const sanityProvisioningErrorCode = z.enum([
   'database',
 ]);
 
+export const sanityAdminVerificationOutcome = z.enum([
+  'expected_user_not_found',
+  'administrator_role_missing',
+  'incomplete_response',
+  'authentication_error',
+  'permission_error',
+  'verified',
+]);
+
 export const sanityProvisioningJob = z
   .object({
     request_id: z.uuid(),
@@ -83,3 +92,4 @@ export type SanityProvisioningRequest = z.infer<typeof sanityProvisioningRequest
 export type SanityProvisioningJob = z.infer<typeof sanityProvisioningJob>;
 export type SanityProvisioningStage = z.infer<typeof sanityProvisioningStage>;
 export type SanityProvisioningErrorCode = z.infer<typeof sanityProvisioningErrorCode>;
+export type SanityAdminVerificationOutcome = z.infer<typeof sanityAdminVerificationOutcome>;

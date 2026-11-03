@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   sanityProvisioningJob,
+  type SanityAdminVerificationOutcome,
   type SanityProvisioningErrorCode,
   type SanityProvisioningJob,
   type SanityProvisioningStage,
@@ -51,6 +52,17 @@ function observe(
   }
 }
 
+function observeAdmin(
+  listener: ((outcome: SanityAdminVerificationOutcome) => void) | undefined,
+  outcome: SanityAdminVerificationOutcome,
+) {
+  try {
+    listener?.(outcome);
+  } catch {
+    // La observabilidad nunca puede autorizar ni bloquear el aprovisionamiento.
+  }
+}
+
 function assertProject(
   value: SanityProject,
   expected: { id: string; name: string; organizationId: string },
@@ -84,20 +96,50 @@ async function ensureProject(job: SanityProvisioningJob, sanity: SanityManagemen
   return current.id;
 }
 
-async function expectedAdministratorIsReady(job: SanityProvisioningJob, sanity: SanityManagement) {
+async function expectedAdministratorIsReady(
+  job: SanityProvisioningJob,
+  sanity: SanityManagement,
+  listener?: (outcome: SanityAdminVerificationOutcome) => void,
+) {
   if (!job.project_id) throw new SanityManagementError('provider_response', false);
-  const current = await sanity.getProject(job.project_id, true);
-  if (!current) throw new SanityManagementError('provider_conflict', false);
-  assertProject(current, {
-    id: job.project_id,
-    name: job.name,
-    organizationId: sanity.organizationId,
-  });
-  if (!current.members) throw new SanityManagementError('provider_response', false);
-  const expected = current.members.find(
-    (member) => member.id === sanity.expectedAdministratorId && member.isRobot !== true,
-  );
-  return expected?.roles.some((role) => role.name === 'administrator') === true;
+  try {
+    const current = await sanity.getProject(job.project_id);
+    if (!current) throw new SanityManagementError('provider_conflict', false);
+    assertProject(current, {
+      id: job.project_id,
+      name: job.name,
+      organizationId: sanity.organizationId,
+    });
+    const expected = await sanity.getProjectUser(job.project_id, sanity.expectedAdministratorId);
+    if (!expected) {
+      observeAdmin(listener, 'expected_user_not_found');
+      return false;
+    }
+    const membership = expected.memberships.find(
+      (item) => item.resourceType === 'project' && item.resourceId === job.project_id,
+    );
+    if (expected.sanityUserId !== sanity.expectedAdministratorId || !membership)
+      throw new SanityManagementError(
+        'provider_response',
+        false,
+        false,
+        'incomplete_admin_response',
+      );
+    if (!membership.roleNames.includes('administrator')) {
+      observeAdmin(listener, 'administrator_role_missing');
+      return false;
+    }
+    observeAdmin(listener, 'verified');
+    return true;
+  } catch (error) {
+    if (error instanceof SanityManagementError) {
+      if (error.code === 'credentials') observeAdmin(listener, 'authentication_error');
+      else if (error.code === 'permissions') observeAdmin(listener, 'permission_error');
+      else if (error.diagnostic === 'incomplete_admin_response')
+        observeAdmin(listener, 'incomplete_response');
+    }
+    throw error;
+  }
 }
 
 async function ensureDataset(job: SanityProvisioningJob, sanity: SanityManagement) {
@@ -127,6 +169,7 @@ export async function runSanityProvisioning(
     store: ProvisioningStore;
     encrypt(token: string, integrationId: string): Promise<EncryptedCredential>;
     observe?: (event: SanityProvisioningObservation) => void;
+    observeAdminVerification?: (outcome: SanityAdminVerificationOutcome) => void;
   },
 ): Promise<SanityProvisioningJob> {
   if (!claim.execute) return claim.job;
@@ -142,7 +185,13 @@ export async function runSanityProvisioning(
       return dependencies.store.pauseForAdmin(projectId);
     }
     if (stage === 'awaiting_sanity_admin') {
-      if (!(await expectedAdministratorIsReady(job, dependencies.sanity)))
+      if (
+        !(await expectedAdministratorIsReady(
+          job,
+          dependencies.sanity,
+          dependencies.observeAdminVerification,
+        ))
+      )
         return dependencies.store.waitForAdmin();
       await dependencies.store.checkpoint('admin_verified');
       stage = 'admin_verified';

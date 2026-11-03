@@ -163,6 +163,13 @@ Deno.serve(
           retryable: event.retryable,
           manual_review: event.manualReview,
         }),
+      observeAdminVerification: (outcome) =>
+        logProvisioningDiagnostic({
+          event: 'sanity-provisioning.admin-verification',
+          component: 'sanity-provisioning',
+          request_id: claim.job.request_id,
+          outcome,
+        }),
     });
   }),
 );
