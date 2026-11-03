@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { diagnoseProvisioning, diagnosticQuery, managementApi } from './diagnose-provisioning.mjs';
+import {
+  DiagnosticFailure,
+  diagnoseProvisioning,
+  diagnosticQuery,
+  managementApi,
+} from './diagnose-provisioning.mjs';
 
 const requestId = '01a1a200-5d67-7c2a-8d50-cdd975f97171';
 
@@ -39,7 +44,25 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
 
 test('consulta acepta solo UUID y selecciona únicamente estado seguro', () => {
   assert.match(diagnosticQuery(requestId), /where r\.request_id=/);
+  assert.match(diagnosticQuery(requestId), /or r\.sanity_request_id=/);
   assert.throws(() => diagnosticQuery("' or true--"));
+});
+
+test('fallos de lectura solo revelan la fase segura', async () => {
+  await assert.rejects(
+    () => diagnoseProvisioning(requestId, async () => []),
+    (error) => error instanceof DiagnosticFailure && error.phase === 'request_lookup',
+  );
+  await assert.rejects(
+    () =>
+      diagnoseProvisioning(requestId, async () => {
+        throw new Error('private provider response');
+      }),
+    (error) =>
+      error instanceof DiagnosticFailure &&
+      error.phase === 'secret_names' &&
+      !error.message.includes('private provider response'),
+  );
 });
 
 test('cliente de gestión limita endpoints y nunca imprime respuestas', async () => {
