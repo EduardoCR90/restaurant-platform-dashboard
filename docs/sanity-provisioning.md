@@ -7,7 +7,7 @@ El flujo exclusivo de Super Admin crea una base editorial independiente para un 
 1. registra una solicitud idempotente y un restaurante `pending`;
 2. crea un proyecto en la organización Sanity configurada y persiste inmediatamente el ID real devuelto por el proveedor;
 3. libera el lease y queda en `awaiting_sanity_admin` hasta que el operador asigne al usuario esperado como Administrator;
-4. verifica desde Edge la identidad y el rol mediante `GET /projects/{projectId}?includeMembers=true`;
+4. verifica desde Edge la identidad humana y los roles efectivos mediante `GET /v2025-07-11/access/project/{projectId}/users/{sanityUserId}?includeImpliedRoles=true`;
 5. crea el dataset público `production` y un token `developer` limitado al proyecto;
 6. cifra la credencial con AES-256-GCM y la vincula al UUID de integración;
 7. registra `restaurant_integrations` y continúa automáticamente con Astro en el flujo integral.
@@ -16,7 +16,7 @@ No crea Studio, repositorio Astro, despliegue, DNS, usuario cliente, membresía,
 
 El request parcial reutiliza las validaciones de restaurante e integración de `provisioningSpec` (contrato 1) y registra `content_contract=salitre-v1`. Al completarse, sus IDs/proyecto/dataset pueden incorporarse al plan completo de fase 5 sin convertir inputs del cliente en autoridad ni duplicar el modelo.
 
-La implementación usa la [Projects API oficial](https://www.sanity.io/docs/http-reference/projects-api): `POST /projects`, `PUT /projects/{projectId}/datasets/production`, `GET /projects/{projectId}?includeMembers=true` y `GET/POST /projects/{projectId}/tokens`. La versión queda fijada a `v2021-06-07`. Al ser un proyecto por restaurante, el token `developer` queda aislado a ese proyecto. El dataset es público para conservar la lectura estática actual; el token nunca se usa ni se entrega en el navegador.
+La implementación usa la [Projects API oficial](https://www.sanity.io/docs/http-reference/projects-api) para proyecto, dataset y token, fijada a `v2021-06-07`. La identidad y membresía usan la [Access API oficial](https://www.sanity.io/docs/http-reference/access-api), fijada a `v2025-07-11`. Al ser un proyecto por restaurante, el token `developer` queda aislado a ese proyecto. El dataset es público para conservar la lectura estática actual; el token nunca se usa ni se entrega en el navegador.
 
 ## Seguridad e idempotencia
 
@@ -24,7 +24,11 @@ La implementación usa la [Projects API oficial](https://www.sanity.io/docs/http
 
 La clave `project_key` derivada del request conserva la idempotencia interna. No se envía como supuesto ID asignable a Sanity. `project_id` es el ID externo real devuelto por `POST /projects` y se almacena antes de liberar el lease. Repetir `start` devuelve el mismo job; `verify_admin` usa locks y leases, por lo que dos pulsaciones no avanzan dos veces. Una respuesta ambigua al POST permanece en `manual_review` para impedir proyectos duplicados.
 
-La pausa no mantiene una Edge Function ejecutándose. Para continuar, el backend obtiene los miembros del proyecto con `includeMembers=true`, busca exactamente `SANITY_EXPECTED_ADMIN_USER_ID`, rechaza robots y exige un rol cuyo `name` sea `administrator`. Un usuario diferente o un rol Developer mantiene el job en `awaiting`; no basta con pulsar el botón ni con que exista cualquier administrador.
+La pausa no mantiene una Edge Function ejecutándose. Para continuar, el backend consulta el recurso **Users** de Access con el `sanityUserId` exacto de `SANITY_EXPECTED_ADMIN_USER_ID`. Sanity separa Users de Robots, así que un robot no puede satisfacer esta comprobación. La respuesta debe contener una membresía del mismo proyecto y `roleNames` debe incluir el nombre canónico `administrator`; `includeImpliedRoles=true` incorpora roles efectivos derivados. Un usuario inexistente o un rol Developer mantiene el job en `awaiting`; una respuesta incompleta, un error de autenticación o la falta de permiso `sanity.project.members.read` detiene el intento sin avanzar.
+
+El endpoint antiguo `GET /projects/{id}?includeMembers=true` no se usa para identificar a la persona. Su `members[].id` representa la identidad de membresía dentro del proyecto, mientras que Access distingue el `sanityUserId` global del `resourceUserId` específico de cada proyecto. Comparar esos dos espacios de IDs provocaba verificaciones negativas aunque el usuario humano tuviera Administrator.
+
+Los logs estructurados `sanity-provisioning.admin-verification` solo incluyen request y una categoría cerrada: `expected_user_not_found`, `administrator_role_missing`, `incomplete_response`, `authentication_error`, `permission_error` o `verified`. No incluyen ID de usuario, roles completos, perfiles, emails, tokens ni respuestas de Sanity.
 
 Proyecto, organización y nombre se vuelven a comprobar antes de aceptar el recurso. Dataset y token se verifican antes de crear. Sanity solo revela la clave del token al crearlo: una etiqueta reservada ya existente o un resultado incierto pasa a `manual_review`; nunca se crea un segundo token. La base solo almacena AES-256-GCM con AAD ligado al UUID de integración. Salitre conserva `SANITY_TOKENS` y su integración existente.
 

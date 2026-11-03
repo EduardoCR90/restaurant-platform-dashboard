@@ -1,5 +1,6 @@
 import type { EnvironmentReader } from './environment.ts';
 import type {
+  SanityAdminVerificationOutcome,
   SanityProvisioningErrorCode,
   SanityProvisioningStage,
 } from '../../../shared/sanity-provisioning.ts';
@@ -76,7 +77,15 @@ type SanityFailureLog = Readonly<{
   manual_review: boolean;
 }>;
 
-export type ProvisioningDiagnosticLog = ConfigurationLog | SanityFailureLog;
+type SanityAdminVerificationLog = Readonly<{
+  event: 'sanity-provisioning.admin-verification';
+  component: 'sanity-provisioning';
+  request_id: string;
+  outcome: SanityAdminVerificationOutcome;
+}>;
+
+export type ProvisioningDiagnosticLog =
+  ConfigurationLog | SanityFailureLog | SanityAdminVerificationLog;
 
 // Solo acepta campos tipados y categorías cerradas. Nunca recibe excepciones,
 // cabeceras, cuerpos de proveedor, emails, tokens o valores de secretos.

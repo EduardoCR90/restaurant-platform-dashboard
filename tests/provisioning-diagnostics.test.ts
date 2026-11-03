@@ -66,4 +66,19 @@ describe('diagnóstico seguro de configuración de aprovisionamiento', () => {
     expect(error.mock.calls[0][0]).not.toContain('management-token');
     error.mockRestore();
   });
+
+  it('registra el resultado de verificación sin identidad ni respuesta del proveedor', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    logProvisioningDiagnostic({
+      event: 'sanity-provisioning.admin-verification',
+      component: 'sanity-provisioning',
+      request_id: '6fa2ef1e-5427-4e04-9876-d0413843b1ea',
+      outcome: 'administrator_role_missing',
+    });
+    const serialized = String(error.mock.calls[0][0]);
+    expect(serialized).toContain('administrator_role_missing');
+    expect(serialized).not.toContain('platform-owner-id');
+    expect(serialized).not.toContain('management-token');
+    error.mockRestore();
+  });
 });

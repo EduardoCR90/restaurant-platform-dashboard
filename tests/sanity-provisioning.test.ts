@@ -100,21 +100,21 @@ function provider(overrides: Partial<SanityManagement> = {}): SanityManagement {
   return {
     organizationId: 'org-test',
     expectedAdministratorId,
-    getProject: vi.fn(async (_id, includeMembers) => ({
+    getProject: vi.fn(async () => ({
       id: externalProjectId,
       displayName: job.name,
       organizationId: 'org-test',
-      ...(includeMembers
-        ? {
-            members: [
-              {
-                id: expectedAdministratorId,
-                roles: [{ name: 'administrator' }],
-                isRobot: false,
-              },
-            ],
-          }
-        : {}),
+    })),
+    getProjectUser: vi.fn(async () => ({
+      sanityUserId: expectedAdministratorId,
+      memberships: [
+        {
+          resourceType: 'project',
+          resourceId: externalProjectId,
+          roleNames: ['administrator'],
+          resourceUserId: 'project-specific-user-id',
+        },
+      ],
     })),
     createProject: vi.fn(async (displayName) => ({
       id: externalProjectId,
@@ -181,31 +181,93 @@ describe('servicio de aprovisionamiento Sanity híbrido', () => {
   });
 
   it.each([
-    ['usuario ausente', []],
-    ['usuario incorrecto', [{ id: 'another-user', roles: [{ name: 'administrator' }] }]],
-    ['rol insuficiente', [{ id: expectedAdministratorId, roles: [{ name: 'developer' }] }]],
-    [
-      'identidad robot',
-      [{ id: expectedAdministratorId, roles: [{ name: 'administrator' }], isRobot: true }],
-    ],
-  ])('mantiene la espera cuando falta el administrador esperado: %s', async (_label, members) => {
+    ['usuario esperado inexistente', null],
+    ['robot con rol administrador', null],
+  ])('mantiene la espera cuando Access Users no devuelve al humano: %s', async () => {
     const db = store(waitingJob);
     const sanity = provider({
-      getProject: vi.fn(async () => ({
-        id: externalProjectId,
-        displayName: job.name,
-        organizationId: 'org-test',
-        members,
-      })),
+      getProjectUser: vi.fn(async () => null),
     });
+    const observeAdminVerification = vi.fn();
     const result = await runSanityProvisioning(claim({ job: waitingJob }), {
       sanity,
       store: db.api,
       encrypt: encryption,
+      observeAdminVerification,
     });
     expect(result).toMatchObject({ status: 'awaiting', stage: 'awaiting_sanity_admin' });
     expect(db.api.waitForAdmin).toHaveBeenCalledOnce();
+    expect(observeAdminVerification).toHaveBeenCalledWith('expected_user_not_found');
     expect(sanity.createDataset).not.toHaveBeenCalled();
+  });
+
+  it.each([['developer'], ['Administrator']])(
+    'mantiene la espera si el rol efectivo no usa el nombre canónico oficial: %s',
+    async (roleName) => {
+      const db = store(waitingJob);
+      const sanity = provider({
+        getProjectUser: vi.fn(async () => ({
+          sanityUserId: expectedAdministratorId,
+          memberships: [
+            {
+              resourceType: 'project',
+              resourceId: externalProjectId,
+              roleNames: [roleName],
+              resourceUserId: 'different-from-sanity-user-id',
+            },
+          ],
+        })),
+      });
+      const observeAdminVerification = vi.fn();
+      const result = await runSanityProvisioning(claim({ job: waitingJob }), {
+        sanity,
+        store: db.api,
+        encrypt: encryption,
+        observeAdminVerification,
+      });
+      expect(result).toMatchObject({ status: 'awaiting', stage: 'awaiting_sanity_admin' });
+      expect(observeAdminVerification).toHaveBeenCalledWith('administrator_role_missing');
+      expect(sanity.createDataset).not.toHaveBeenCalled();
+    },
+  );
+
+  it('detiene una respuesta incompleta o una identidad incoherente sin dejarla avanzar', async () => {
+    const db = store(waitingJob);
+    const observeAdminVerification = vi.fn();
+    const result = await runSanityProvisioning(claim({ job: waitingJob }), {
+      sanity: provider({
+        getProjectUser: vi.fn(async () => ({
+          sanityUserId: 'different-human-user',
+          memberships: [],
+        })),
+      }),
+      store: db.api,
+      encrypt: encryption,
+      observeAdminVerification,
+    });
+    expect(result).toMatchObject({ status: 'failed', error_code: 'provider_response' });
+    expect(observeAdminVerification).toHaveBeenCalledWith('incomplete_response');
+    expect(db.api.waitForAdmin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['credentials' as const, 'authentication_error'],
+    ['permissions' as const, 'permission_error'],
+  ])('distingue fallos seguros de Access API: %s', async (code, outcome) => {
+    const db = store(waitingJob);
+    const observeAdminVerification = vi.fn();
+    const result = await runSanityProvisioning(claim({ job: waitingJob }), {
+      sanity: provider({
+        getProjectUser: vi.fn(async () => {
+          throw new SanityManagementError(code, true);
+        }),
+      }),
+      store: db.api,
+      encrypt: encryption,
+      observeAdminVerification,
+    });
+    expect(result).toMatchObject({ status: 'failed', error_code: code });
+    expect(observeAdminVerification).toHaveBeenCalledWith(outcome);
   });
 
   it('verifica identidad y rol, reutiliza dataset y continúa con un token Developer', async () => {
@@ -214,14 +276,18 @@ describe('servicio de aprovisionamiento Sanity híbrido', () => {
       listDatasets: vi.fn(async () => [{ name: 'production', aclMode: 'public' }]),
     });
     const encrypt = vi.fn(encryption);
+    const observeAdminVerification = vi.fn();
     const result = await runSanityProvisioning(claim({ job: waitingJob }), {
       sanity,
       store: db.api,
       encrypt,
+      observeAdminVerification,
     });
     expect(result).toBe(db.completed);
     expect(db.checkpoints).toEqual(['admin_verified', 'dataset_ready', 'credential_pending']);
-    expect(sanity.getProject).toHaveBeenCalledWith(externalProjectId, true);
+    expect(sanity.getProject).toHaveBeenCalledWith(externalProjectId);
+    expect(sanity.getProjectUser).toHaveBeenCalledWith(externalProjectId, expectedAdministratorId);
+    expect(observeAdminVerification).toHaveBeenCalledWith('verified');
     expect(sanity.createProject).not.toHaveBeenCalled();
     expect(sanity.createDataset).not.toHaveBeenCalled();
     expect(sanity.createDeveloperToken).toHaveBeenCalledOnce();
@@ -312,7 +378,7 @@ describe('servicio de aprovisionamiento Sanity híbrido', () => {
     ).toThrow(/Identidad administradora/);
   });
 
-  it('usa Projects API oficial, includeMembers y token Developer sin filtrar secretos', async () => {
+  it('usa Projects y Access API oficiales con sanityUserId y token Developer', async () => {
     const requests: Request[] = [];
     const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const request = new Request(input, init);
@@ -324,11 +390,22 @@ describe('servicio de aprovisionamiento Sanity híbrido', () => {
         );
       if (request.method === 'POST' && request.url.endsWith('/tokens'))
         return Response.json({ id: 'token', label: 'label', key: 'private-key' }, { status: 201 });
+      if (request.url.includes('/v2025-07-11/access/project/'))
+        return Response.json({
+          sanityUserId: expectedAdministratorId,
+          memberships: [
+            {
+              resourceType: 'project',
+              resourceId: externalProjectId,
+              roleNames: ['administrator'],
+              resourceUserId: 'project-specific-user-id',
+            },
+          ],
+        });
       return Response.json({
         id: externalProjectId,
         displayName: job.name,
         organizationId: 'org-test',
-        members: [{ id: expectedAdministratorId, roles: [{ name: 'administrator' }] }],
       });
     });
     const client = sanityManagement(
@@ -336,13 +413,17 @@ describe('servicio de aprovisionamiento Sanity híbrido', () => {
       fetcher as typeof fetch,
     );
     await client.createProject(job.name);
-    await client.getProject(externalProjectId, true);
+    await client.getProject(externalProjectId);
+    await client.getProjectUser(externalProjectId, expectedAdministratorId);
     await client.createDeveloperToken(externalProjectId, 'label');
     const createBody = await requests[0].clone().json();
     expect(createBody).not.toHaveProperty('id');
     expect(JSON.stringify(createBody)).not.toContain('management-secret');
-    expect(requests[1].url).toContain('includeMembers=true');
-    expect(await requests[2].clone().json()).toMatchObject({ roleName: 'developer' });
+    expect(requests[1].url).toBe(`https://api.sanity.io/v2021-06-07/projects/${externalProjectId}`);
+    expect(requests[2].url).toBe(
+      `https://api.sanity.io/v2025-07-11/access/project/${externalProjectId}/users/${expectedAdministratorId}?includeImpliedRoles=true`,
+    );
+    expect(await requests[3].clone().json()).toMatchObject({ roleName: 'developer' });
   });
 
   it('sanitiza rechazos del proveedor sin propagar respuestas privadas', async () => {
@@ -359,5 +440,20 @@ describe('servicio de aprovisionamiento Sanity híbrido', () => {
     await expect(client.getProject(externalProjectId)).rejects.not.toThrow(
       'provider-private-diagnostic',
     );
+  });
+
+  it('clasifica como incompleta una respuesta Access sin memberships', async () => {
+    const client = sanityManagement(
+      { token: 'management-secret', organizationId: 'org-test', expectedAdministratorId },
+      vi.fn(async () =>
+        Response.json({ sanityUserId: expectedAdministratorId, profile: { id: 'private' } }),
+      ) as typeof fetch,
+    );
+    await expect(
+      client.getProjectUser(externalProjectId, expectedAdministratorId),
+    ).rejects.toMatchObject({
+      code: 'provider_response',
+      diagnostic: 'incomplete_admin_response',
+    });
   });
 });
