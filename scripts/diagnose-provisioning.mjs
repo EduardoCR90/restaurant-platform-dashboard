@@ -17,20 +17,35 @@ export function diagnosticQuery(requestId) {
  s.request_id as child_request_id,s.status as child_status,s.stage as child_stage,s.error_code as child_error_code,s.retryable as child_retryable,s.attempt_count as child_attempt_count,s.updated_at as child_updated_at
  from public.restaurant_provisioning_jobs r
  left join public.sanity_provisioning_jobs s on s.request_id=r.sanity_request_id
- where r.request_id='${requestId}'::uuid`;
+ where r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid`;
+}
+
+export class DiagnosticFailure extends Error {
+  constructor(phase) {
+    super(`Diagnóstico detenido en fase ${phase}; no se muestran datos privados.`);
+    this.phase = phase;
+  }
 }
 
 export async function diagnoseProvisioning(requestId, api) {
   assert.match(requestId, uuid);
-  const [secretEntries, rows] = await Promise.all([
-    api('secrets'),
-    api('database/query', {
+  let secretEntries;
+  try {
+    secretEntries = await api('secrets');
+  } catch {
+    throw new DiagnosticFailure('secret_names');
+  }
+  let rows;
+  try {
+    rows = await api('database/query', {
       method: 'POST',
       body: { query: diagnosticQuery(requestId), read_only: true },
-    }),
-  ]);
-  assert.ok(Array.isArray(secretEntries), 'Respuesta de secretos no disponible');
-  assert.ok(Array.isArray(rows) && rows.length === 1, 'Solicitud no encontrada o ambigua');
+    });
+  } catch {
+    throw new DiagnosticFailure('request_state');
+  }
+  if (!Array.isArray(secretEntries)) throw new DiagnosticFailure('secret_names_shape');
+  if (!Array.isArray(rows) || rows.length !== 1) throw new DiagnosticFailure('request_lookup');
   const names = new Set(
     secretEntries.flatMap((entry) =>
       entry && typeof entry === 'object' && typeof entry.name === 'string' ? [entry.name] : [],
@@ -103,9 +118,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     console.log(JSON.stringify(result));
   } catch (error) {
     console.error(
-      error?.message?.startsWith('Diagnóstico rechazado (HTTP ')
+      error instanceof DiagnosticFailure
         ? error.message
-        : 'Diagnóstico detenido: no se muestran secretos, filas completas ni respuestas privadas.',
+        : error?.message?.startsWith('Diagnóstico rechazado (HTTP ')
+          ? error.message
+          : 'Diagnóstico detenido: no se muestran secretos, filas completas ni respuestas privadas.',
     );
     process.exitCode = 1;
   }
