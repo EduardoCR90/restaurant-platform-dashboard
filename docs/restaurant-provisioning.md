@@ -51,4 +51,4 @@ En **Supabase → Edge Functions → Secrets**:
 
 El repositorio `restaurant-astro-template` debe mantener activado **Template repository**. El token GitHub necesita acceso backend mínimo para generar repositorios desde ese template, despachar Actions y configurar Pages; el token Sanity debe poder crear proyectos/datasets/tokens en la organización indicada. No guardes estos valores en GitHub, Vercel, `.env` versionados o el chat.
 
-Sin configuración, el endpoint registra la solicitud agregada como `failed/configuration`, no llama a proveedores y permite un reintento explícito después de corregir secretos. Las pruebas usan PGlite, adaptadores simulados y rutas Playwright; no crean recursos reales.
+Sin los cuatro secretos Sanity y cifrado, el endpoint registra la solicitud agregada como `failed/configuration`, no llama a proveedores y permite un reintento explícito después de corregir secretos. El workflow manual **Diagnose provisioning (read-only)** comprueba una solicitud existente y la presencia de esos nombres sin leer sus valores ni reintentarla. Las pruebas usan PGlite, adaptadores simulados y rutas Playwright; no crean recursos reales.

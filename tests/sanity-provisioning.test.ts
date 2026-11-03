@@ -189,6 +189,7 @@ describe('servicio de aprovisionamiento Sanity', () => {
 
   it('clasifica fallos conocidos sin respuestas privadas y solo permite reintento explícito', async () => {
     const db = store();
+    const observe = vi.fn();
     const result = await runSanityProvisioning(claim(), {
       sanity: provider({
         getProject: vi.fn(async () => {
@@ -197,8 +198,15 @@ describe('servicio de aprovisionamiento Sanity', () => {
       }),
       store: db.api,
       encrypt: vi.fn(),
+      observe,
     });
     expect(result).toMatchObject({ status: 'failed', retryable: true, error_code: 'permissions' });
+    expect(observe).toHaveBeenCalledWith({
+      stage: 'queued',
+      errorCode: 'permissions',
+      retryable: true,
+      manualReview: false,
+    });
   });
 
   it('genera identidad estable y exige secretos backend sin revelar valores', async () => {
