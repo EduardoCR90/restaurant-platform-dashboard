@@ -26,6 +26,7 @@ vi.mock('../src/services/platform', () => ({
       updateUser: vi.fn(),
     },
   },
+  requestPasswordReset: vi.fn(),
   contentApi: { list: vi.fn() },
   loadWorkspace: vi.fn(),
 }));
@@ -35,6 +36,7 @@ const state = {
   profile: null,
   loading: false,
   error: null,
+  emailLink: { status: 'none', type: null, message: null },
   refresh: vi.fn(),
 } satisfies ReturnType<typeof useAuth>;
 beforeEach(() => {
@@ -80,14 +82,16 @@ describe('Auth real en servicios; interfaz con mocks', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo iniciar sesión');
   });
   it('solicita recuperación con destino autorizado del mismo origen', async () => {
-    vi.mocked(supabase.auth.resetPasswordForEmail).mockResolvedValue({ data: {}, error: null });
+    const { requestPasswordReset } = await import('../src/services/platform');
+    vi.mocked(requestPasswordReset).mockResolvedValue({ data: {}, error: null });
     renderPage('reset');
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Email'), 'owner@example.test');
     await user.click(screen.getByRole('button', { name: 'Enviar instrucciones' }));
-    expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith('owner@example.test', {
-      redirectTo: new URL('/auth/update-password', window.location.origin).href,
-    });
+    expect(requestPasswordReset).toHaveBeenCalledWith(
+      'owner@example.test',
+      new URL('/auth/update-password', window.location.origin).href,
+    );
     expect(await screen.findByRole('status')).toHaveTextContent('Si la cuenta existe');
   });
   it('cambio de contraseña requiere sesión y confirmación válida', async () => {
@@ -102,6 +106,34 @@ describe('Auth real en servicios; interfaz con mocks', () => {
     await user.type(screen.getByLabelText('Repite la contraseña'), 'password-long-enough');
     await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }));
     expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'password-long-enough' });
+  });
+  it('un enlace caducado no reutiliza una sesión que ya estaba abierta', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      ...state,
+      session,
+      emailLink: {
+        status: 'error',
+        type: 'recovery',
+        message: 'El enlace ha caducado o ya se ha utilizado. Solicita uno nuevo.',
+      },
+    });
+    renderPage('update');
+    expect(screen.getByRole('alert')).toHaveTextContent('El enlace ha caducado');
+    expect(screen.queryByLabelText('Contraseña')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Solicitar un enlace nuevo' })).toHaveAttribute(
+      'href',
+      '/auth/reset-password',
+    );
+  });
+  it('espera a canjear el callback antes de mostrar el formulario', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      ...state,
+      loading: true,
+      emailLink: { status: 'processing', type: null, message: null },
+    });
+    renderPage('update');
+    expect(screen.getByRole('status')).toHaveTextContent('Comprobando el enlace seguro');
+    expect(screen.queryByLabelText('Contraseña')).not.toBeInTheDocument();
   });
   it('ruta privada redirige sin sesión o al caducar', () => {
     render(

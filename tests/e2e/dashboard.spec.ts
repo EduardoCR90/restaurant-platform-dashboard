@@ -180,6 +180,57 @@ test('rutas privadas y recuperación en móvil, sin llamadas de escritura remota
   await expect(page.getByRole('heading', { name: 'Volver a entrar' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('un enlace de recuperación abre el formulario y cambia la contraseña sin sesión previa', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  let updatedPassword = '';
+  await page.route(`https://${project}.supabase.co/**`, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith('/auth/v1/user')) {
+      if (request.method() === 'PUT') {
+        const payload = request.postDataJSON() as { password?: string };
+        updatedPassword = payload.password || '';
+      }
+      await route.fulfill({ json: user });
+      return;
+    }
+    if (url.pathname.includes('/rest/v1/profiles')) {
+      await route.fulfill({
+        json: { id: userId, display_name: 'Equipo de prueba', status: 'active' },
+      });
+      return;
+    }
+    await route.fulfill({ json: {} });
+  });
+  const accessToken =
+    Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url') +
+    '.' +
+    Buffer.from(
+      JSON.stringify({
+        sub: userId,
+        role: 'authenticated',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url') +
+    '.recovery-signature';
+  await page.goto(
+    `/auth/update-password#access_token=${accessToken}&refresh_token=recovery-refresh&type=recovery&expires_in=3600&token_type=bearer`,
+  );
+  await expect(page.getByRole('heading', { name: 'Configura tu acceso' })).toBeVisible();
+  await expect(page).toHaveURL('/auth/update-password');
+  await page.getByLabel('Contraseña', { exact: true }).fill('recovery-password-2026');
+  await page.getByLabel('Repite la contraseña', { exact: true }).fill('recovery-password-2026');
+  await page.getByRole('button', { name: 'Guardar contraseña' }).click();
+  await expect(page.getByRole('status')).toHaveText(
+    'Contraseña actualizada. Ya puedes entrar en tu espacio.',
+  );
+  expect(updatedPassword).toBe('recovery-password-2026');
+  expect(errors).toEqual([]);
+});
 test('selección autorizada, edición, guardado y publicación (API de ensayo)', async ({ page }) => {
   await mockedWorkspace(page);
   await page.goto('/');
