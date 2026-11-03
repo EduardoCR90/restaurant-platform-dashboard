@@ -59,11 +59,28 @@ test('consulta acepta solo UUID y selecciona únicamente estado seguro', () => {
   );
 });
 
-test('fallos de lectura solo revelan la fase segura', async () => {
-  await assert.rejects(
-    () => diagnoseProvisioning(requestId, async () => []),
-    (error) => error instanceof DiagnosticFailure && error.phase === 'request_lookup',
+test('ausencia de fila conserva el diagnóstico seguro de nombres', async () => {
+  await expectNoRequest('request_not_found_with_required_secret_names_present', [
+    { name: 'SANITY_PROVISIONER_TOKEN' },
+    { name: 'SANITY_PROVISIONING_ORGANIZATION_ID' },
+    { name: 'APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY' },
+    { name: 'APP_INTEGRATION_CREDENTIAL_KEYS' },
+  ]);
+  await expectNoRequest('missing_required_secrets', [
+    { name: 'SANITY_PROVISIONER_TOKEN' },
+    { name: 'SANITY_PROVISIONING_ORGANIZATION_ID' },
+  ]);
+});
+
+async function expectNoRequest(conclusion, secrets) {
+  const result = await diagnoseProvisioning(requestId, async (path) =>
+    path === 'secrets' ? secrets : [],
   );
+  assert.equal(result.conclusion, conclusion);
+  assert.equal(result.aggregate, null);
+}
+
+test('fallos de lectura solo revelan la fase segura', async () => {
   await assert.rejects(
     () =>
       diagnoseProvisioning(requestId, async () => {

@@ -54,7 +54,6 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
     throw new DiagnosticFailure('request_state');
   }
   if (!Array.isArray(secretEntries)) throw new DiagnosticFailure('secret_names_shape');
-  if (!Array.isArray(rows) || rows.length !== 1) throw new DiagnosticFailure('request_lookup');
   const names = new Set(
     secretEntries.flatMap((entry) =>
       entry && typeof entry === 'object' && typeof entry.name === 'string' ? [entry.name] : [],
@@ -64,6 +63,18 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
     requiredSanitySecrets.map((name) => [name, names.has(name)]),
   );
   const missing = requiredSanitySecrets.filter((name) => !names.has(name));
+  if (!Array.isArray(rows)) throw new DiagnosticFailure('request_state_shape');
+  if (rows.length === 0)
+    return {
+      configured,
+      missing,
+      aggregate: null,
+      sanity_child: null,
+      conclusion: missing.length
+        ? 'missing_required_secrets'
+        : 'request_not_found_with_required_secret_names_present',
+    };
+  if (rows.length !== 1) throw new DiagnosticFailure('request_lookup_ambiguous');
   const row = rows[0];
   const aggregate = {
     request_id: row.request_id,
