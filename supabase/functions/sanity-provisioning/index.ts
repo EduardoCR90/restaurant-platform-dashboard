@@ -37,6 +37,25 @@ function provisioningStore(
   leaseToken: string,
 ): ProvisioningStore {
   return {
+    async pauseForAdmin(projectId: string) {
+      const { data, error } = await admin.rpc('admin_pause_sanity_admin', {
+        actor,
+        request: requestId,
+        lease: leaseToken,
+        external_project: projectId,
+      });
+      if (error || !data) databaseFailure(error);
+      return sanityProvisioningJob.parse(data);
+    },
+    async waitForAdmin() {
+      const { data, error } = await admin.rpc('admin_wait_sanity_admin', {
+        actor,
+        request: requestId,
+        lease: leaseToken,
+      });
+      if (error || !data) databaseFailure(error);
+      return sanityProvisioningJob.parse(data);
+    },
     async checkpoint(stage: SanityProvisioningStage) {
       const { error } = await admin.rpc('admin_checkpoint_sanity_provisioning', {
         actor,

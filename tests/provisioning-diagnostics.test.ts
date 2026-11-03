@@ -8,6 +8,7 @@ import {
 const valid = {
   SANITY_PROVISIONER_TOKEN: 'management-token',
   SANITY_PROVISIONING_ORGANIZATION_ID: 'organization-id',
+  SANITY_EXPECTED_ADMIN_USER_ID: 'platform-owner-id',
   APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY: 'v1',
   APP_INTEGRATION_CREDENTIAL_KEYS: JSON.stringify({
     v1: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
@@ -22,6 +23,7 @@ describe('diagnóstico seguro de configuración de aprovisionamiento', () => {
         env({
           SANITY_PROVISIONER_TOKEN: valid.SANITY_PROVISIONER_TOKEN,
           SANITY_PROVISIONING_ORGANIZATION_ID: valid.SANITY_PROVISIONING_ORGANIZATION_ID,
+          SANITY_EXPECTED_ADMIN_USER_ID: valid.SANITY_EXPECTED_ADMIN_USER_ID,
         }),
       ),
     ).toEqual({

@@ -19,6 +19,8 @@ export type ProvisioningClaim = Readonly<{
 }>;
 
 export type ProvisioningStore = {
+  pauseForAdmin(projectId: string): Promise<SanityProvisioningJob>;
+  waitForAdmin(): Promise<SanityProvisioningJob>;
   checkpoint(stage: SanityProvisioningStage): Promise<void>;
   complete(input: {
     providerTokenId: string;
@@ -62,26 +64,44 @@ function assertProject(
 }
 
 async function ensureProject(job: SanityProvisioningJob, sanity: SanityManagement) {
+  if (!job.project_id) {
+    const created = await sanity.createProject(job.name);
+    assertProject(created, {
+      id: created.id,
+      name: job.name,
+      organizationId: sanity.organizationId,
+    });
+    return created.id;
+  }
   const expected = {
     id: job.project_id,
     name: job.name,
     organizationId: sanity.organizationId,
   };
-  let current = await sanity.getProject(job.project_id);
-  if (!current) {
-    try {
-      current = await sanity.createProject(job.project_id, job.name);
-    } catch (error) {
-      if (!(error instanceof SanityManagementError) || error.code !== 'provider_conflict')
-        throw error;
-      current = await sanity.getProject(job.project_id);
-      if (!current) throw error;
-    }
-  }
+  const current = await sanity.getProject(job.project_id);
+  if (!current) throw new SanityManagementError('provider_conflict', false);
   assertProject(current, expected);
+  return current.id;
+}
+
+async function expectedAdministratorIsReady(job: SanityProvisioningJob, sanity: SanityManagement) {
+  if (!job.project_id) throw new SanityManagementError('provider_response', false);
+  const current = await sanity.getProject(job.project_id, true);
+  if (!current) throw new SanityManagementError('provider_conflict', false);
+  assertProject(current, {
+    id: job.project_id,
+    name: job.name,
+    organizationId: sanity.organizationId,
+  });
+  if (!current.members) throw new SanityManagementError('provider_response', false);
+  const expected = current.members.find(
+    (member) => member.id === sanity.expectedAdministratorId && member.isRobot !== true,
+  );
+  return expected?.roles.some((role) => role.name === 'administrator') === true;
 }
 
 async function ensureDataset(job: SanityProvisioningJob, sanity: SanityManagement) {
+  if (!job.project_id) throw new SanityManagementError('provider_response', false);
   let datasets = await sanity.listDatasets(job.project_id);
   let current = datasets.find((item) => item.name === job.dataset);
   if (!current) {
@@ -114,13 +134,20 @@ export async function runSanityProvisioning(
   const job = sanityProvisioningJob.parse(claim.job);
   let stage = job.stage;
   let tokenCreated = false;
+  let projectCreated = false;
   try {
     if (stage === 'queued') {
-      await ensureProject(job, dependencies.sanity);
-      await dependencies.store.checkpoint('project_ready');
-      stage = 'project_ready';
+      const projectId = await ensureProject(job, dependencies.sanity);
+      projectCreated = job.project_id === null;
+      return dependencies.store.pauseForAdmin(projectId);
     }
-    if (stage === 'project_ready') {
+    if (stage === 'awaiting_sanity_admin') {
+      if (!(await expectedAdministratorIsReady(job, dependencies.sanity)))
+        return dependencies.store.waitForAdmin();
+      await dependencies.store.checkpoint('admin_verified');
+      stage = 'admin_verified';
+    }
+    if (stage === 'admin_verified' || stage === 'project_ready') {
       await ensureDataset(job, dependencies.sanity);
       await dependencies.store.checkpoint('dataset_ready');
       stage = 'dataset_ready';
@@ -131,10 +158,11 @@ export async function runSanityProvisioning(
     }
     if (stage !== 'credential_pending') throw new Error('Invalid provisioning stage');
     const label = `restaurant-platform-${job.integration_id}`;
+    if (!job.project_id) throw new SanityManagementError('provider_response', false);
     const existing = await dependencies.sanity.listTokens(job.project_id);
     if (existing.some((token) => token.label === label))
       throw new SanityManagementError('credential_ambiguous', false, true);
-    const token = await dependencies.sanity.createEditorToken(job.project_id, label);
+    const token = await dependencies.sanity.createDeveloperToken(job.project_id, label);
     tokenCreated = true;
     let credential: EncryptedCredential;
     try {
@@ -158,8 +186,8 @@ export async function runSanityProvisioning(
             tokenCreated || stage === 'credential_pending'
               ? 'credential_ambiguous'
               : 'provider_response',
-            stage !== 'credential_pending',
-            tokenCreated || stage === 'credential_pending',
+            stage !== 'credential_pending' && !projectCreated,
+            tokenCreated || stage === 'credential_pending' || projectCreated,
           );
     observe(dependencies.observe, {
       stage,

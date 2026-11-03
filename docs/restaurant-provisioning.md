@@ -7,13 +7,14 @@ El panel **Administración → Crear un restaurante** es exclusivo de Super Admi
 `restaurant-provisioning` registra un plan inmutable e idempotente y deriva dos UUID distintos para los trabajos hijos. Después:
 
 1. invoca `sanity-provisioning` con la misma sesión Super Admin;
-2. conserva restaurante e integración `pending` cuando Sanity termina;
-3. invoca `astro-provisioning` con el release aprobado y la configuración almacenada;
-4. queda en `awaiting` mientras GitHub ejecuta el bootstrap y devuelve evidencia OIDC;
-5. al consultar de nuevo, verifica el trabajo Astro, Pages, deployment y website registrados;
-6. prepara una invitación única, reutiliza un usuario Auth con el mismo email si ya existe o envía la invitación mediante Admin Auth;
-7. crea la membresía owner/manager, activa el restaurante y cierra el trabajo en una transacción;
-8. muestra la URL provisional de Pages y, si se solicitó dominio, las instrucciones DNS pendientes.
+2. muestra una pausa recuperable para asignar y verificar al Administrator esperado en el proyecto Sanity real;
+3. conserva restaurante e integración `pending` cuando Sanity termina;
+4. invoca `astro-provisioning` con el release aprobado y la configuración almacenada;
+5. queda en `awaiting` mientras GitHub ejecuta el bootstrap y devuelve evidencia OIDC;
+6. al consultar de nuevo, verifica el trabajo Astro, Pages, deployment y website registrados;
+7. prepara una invitación única, reutiliza un usuario Auth con el mismo email si ya existe o envía la invitación mediante Admin Auth;
+8. crea la membresía owner/manager, activa el restaurante y cierra el trabajo en una transacción;
+9. muestra la URL provisional de Pages y, si se solicitó dominio, las instrucciones DNS pendientes.
 
 Cerrar el navegador no pierde el alta. La lista se carga desde PostgreSQL y permite continuar el seguimiento. La UI consulta automáticamente un trabajo `running/awaiting`; un fallo recuperable exige pulsar **Reintentar etapa segura**. Un conflicto o resultado ambiguo permanece en `manual_review` y no se repite.
 
@@ -39,6 +40,7 @@ En **Supabase → Edge Functions → Secrets**:
 
 - `SANITY_PROVISIONER_TOKEN`
 - `SANITY_PROVISIONING_ORGANIZATION_ID`
+- `SANITY_EXPECTED_ADMIN_USER_ID`
 - `APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY=v1`
 - `APP_INTEGRATION_CREDENTIAL_KEYS={"v1":"<clave-base64url-de-32-bytes>"}`
 - `GITHUB_PROVISIONER_TOKEN`
@@ -51,4 +53,4 @@ En **Supabase → Edge Functions → Secrets**:
 
 El repositorio `restaurant-astro-template` debe mantener activado **Template repository**. El token GitHub necesita acceso backend mínimo para generar repositorios desde ese template, despachar Actions y configurar Pages; el token Sanity debe poder crear proyectos/datasets/tokens en la organización indicada. No guardes estos valores en GitHub, Vercel, `.env` versionados o el chat.
 
-Sin los cuatro secretos Sanity y cifrado, el endpoint registra la solicitud agregada como `failed/configuration`, no llama a proveedores y permite un reintento explícito después de corregir secretos. El workflow manual **Diagnose provisioning (read-only)** comprueba una solicitud existente y la presencia de esos nombres sin leer sus valores ni reintentarla. Las pruebas usan PGlite, adaptadores simulados y rutas Playwright; no crean recursos reales.
+Sin los cinco valores Sanity, identidad y cifrado, el endpoint registra la solicitud agregada como `failed/configuration`, no llama a proveedores y permite un reintento explícito después de corregir secretos. El workflow manual **Diagnose provisioning (read-only)** comprueba una solicitud existente y la presencia de esos nombres sin leer sus valores ni reintentarla. Las pruebas usan PGlite, adaptadores simulados y rutas Playwright; no crean recursos reales.

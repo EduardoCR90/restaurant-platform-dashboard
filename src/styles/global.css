@@ -962,6 +962,32 @@ select {
   padding-top: 1.5rem;
   border-top: 1px solid var(--line);
 }
+.manual-checkpoint {
+  margin-block: 1.5rem;
+  padding: 1.25rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--paper));
+}
+.manual-checkpoint h4 {
+  margin-top: 0;
+}
+.manual-checkpoint dl {
+  display: grid;
+  gap: 0.65rem;
+  margin-block: 1rem;
+}
+.manual-checkpoint dl div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.25fr) 1fr;
+  gap: 1rem;
+}
+.manual-checkpoint dt {
+  color: var(--muted);
+}
+.manual-checkpoint dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .table-scroll {
   overflow-x: auto;
 }

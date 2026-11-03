@@ -32,12 +32,19 @@ const completeReady = {
   complete_rpc: true,
   fail_rpc: true,
 };
+const hybridReady = {
+  external_project_id: true,
+  pause_rpc: true,
+  wait_rpc: true,
+  resume_rpc: true,
+};
 const protections = {
   modules_protected: true,
   admin_protected: true,
   provisioning_protected: true,
   astro_provisioning_protected: true,
   complete_provisioning_protected: true,
+  hybrid_protected: true,
 };
 test('inspect is read-only and refuses a partial schema', async () => {
   const calls = [];
@@ -49,13 +56,16 @@ test('inspect is read-only and refuses a partial schema', async () => {
         ? [provisioningReady]
         : calls.length === 3
           ? [astroReady]
-          : [completeReady];
+          : calls.length === 4
+            ? [completeReady]
+            : [hybridReady];
   });
   assert.equal(result.schemaReady, true);
   assert.equal(result.provisioningReady, true);
   assert.equal(result.astroProvisioningReady, true);
   assert.equal(result.completeProvisioningReady, true);
-  assert.equal(calls.length, 4);
+  assert.equal(result.hybridSanityReady, true);
+  assert.equal(calls.length, 5);
   assert.equal(calls[0].options.body.read_only, true);
   await assert.rejects(
     configureTemplateGovernance('apply', async () => [{ ...ready, builds: false }]),
@@ -70,6 +80,7 @@ test('apply checks immutable release identity and module/RPC privilege protectio
     if (queries.length === 2) return [provisioningReady];
     if (queries.length === 3) return [astroReady];
     if (queries.length === 4) return [completeReady];
+    if (queries.length === 5) return [hybridReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -92,6 +103,7 @@ test('apply installs the reviewed provisioning migration only when the whole sch
       return [Object.fromEntries(Object.keys(provisioningReady).map((key) => [key, false]))];
     if (queries.length === 3) return [astroReady];
     if (queries.length === 4) return [completeReady];
+    if (queries.length === 5) return [hybridReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -109,6 +121,7 @@ test('apply installs the reviewed Astro provisioning migration only when fully a
     if (queries.length === 3)
       return [Object.fromEntries(Object.keys(astroReady).map((key) => [key, false]))];
     if (queries.length === 4) return [completeReady];
+    if (queries.length === 5) return [hybridReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -126,10 +139,29 @@ test('apply installs the complete provisioning migration only when fully absent'
     if (queries.length === 3) return [astroReady];
     if (queries.length === 4)
       return [Object.fromEntries(Object.keys(completeReady).map((key) => [key, false]))];
+    if (queries.length === 5) return [hybridReady];
     if (options.body.read_only) return [protections];
     return [];
   });
   assert.ok(queries.some((query) => query.query.includes('restaurant_provisioning_jobs')));
   assert.ok(queries.some((query) => query.query.includes('restaurant_domains')));
   assert.ok(!queries.some((query) => /delete|truncate|drop table/i.test(query.query)));
+});
+
+test('apply installs hybrid Sanity pause only when the reviewed schema is fully absent', async () => {
+  const queries = [];
+  await configureTemplateGovernance('apply', async (_path, options) => {
+    queries.push(options.body);
+    if (queries.length === 1) return [ready];
+    if (queries.length === 2) return [provisioningReady];
+    if (queries.length === 3) return [astroReady];
+    if (queries.length === 4) return [completeReady];
+    if (queries.length === 5)
+      return [Object.fromEntries(Object.keys(hybridReady).map((key) => [key, false]))];
+    if (options.body.read_only) return [protections];
+    return [];
+  });
+  assert.ok(queries.some((query) => query.query.includes('admin_pause_sanity_admin')));
+  assert.ok(queries.some((query) => query.query.includes('external_project_id')));
+  assert.ok(!queries.some((query) => /truncate|drop table/i.test(query.query)));
 });

@@ -19,16 +19,24 @@ export const sanityProvisioningRequest = z.discriminatedUnion('operation', [
     .strict(),
   z
     .object({
-      operation: z.enum(['retry', 'status']),
+      operation: z.enum(['retry', 'status', 'verify_admin']),
       payload: z.object({ request_id: z.uuid() }).strict(),
     })
     .strict(),
 ]);
 
-export const sanityProvisioningStatus = z.enum(['running', 'succeeded', 'failed', 'manual_review']);
+export const sanityProvisioningStatus = z.enum([
+  'running',
+  'awaiting',
+  'succeeded',
+  'failed',
+  'manual_review',
+]);
 
 export const sanityProvisioningStage = z.enum([
   'queued',
+  'awaiting_sanity_admin',
+  'admin_verified',
   'project_ready',
   'dataset_ready',
   'credential_pending',
@@ -54,7 +62,12 @@ export const sanityProvisioningJob = z
     integration_id: provisioningSpec.shape.sanity.shape.integration_id,
     name: portableRestaurant.name,
     slug: portableRestaurant.slug,
-    project_id: z.string().regex(/^[a-z0-9]{5,16}$/),
+    project_key: z.string().regex(/^r[a-f0-9]{15}$/),
+    project_id: z
+      .string()
+      .regex(/^[a-z0-9]{5,16}$/)
+      .nullable(),
+    manage_url: z.url().nullable(),
     dataset: z.literal('production'),
     status: sanityProvisioningStatus,
     stage: sanityProvisioningStage,

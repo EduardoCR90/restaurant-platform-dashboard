@@ -529,12 +529,87 @@ test('Super Admin prepara el alta integral sin credenciales ni IDs externos en e
   await page.route(`https://${project}.supabase.co/rest/v1/template_releases*`, (route) =>
     route.fulfill({ json: [release] }),
   );
+  let startedRequestId = '';
+  let startedModules: unknown[] = [];
+  const aggregate = (state: 'awaiting' | 'succeeded') => ({
+    request_id: startedRequestId,
+    name: 'Burger House',
+    slug: 'burger-house',
+    client_email: 'burger@example.com',
+    client_role: 'restaurant_owner',
+    template: { template_key: 'restaurant-editorial', version: '0.4.0' },
+    visual: { preset: 'casual' },
+    modules: startedModules,
+    domain: { hostname: 'www.burger-house.example', mode: 'subdomain' },
+    sanity_request_id: '00000000-0000-4000-8000-000000000402',
+    astro_request_id: '00000000-0000-4000-8000-000000000403',
+    restaurant_id: state === 'succeeded' ? restaurantId : null,
+    integration_id: state === 'succeeded' ? '00000000-0000-4000-8000-000000000404' : null,
+    invitation_id: state === 'succeeded' ? '00000000-0000-4000-8000-000000000405' : null,
+    client_user_id: state === 'succeeded' ? '00000000-0000-4000-8000-000000000406' : null,
+    repository: state === 'succeeded' ? 'EduardoCR90/burger-house-restaurant' : null,
+    site_url:
+      state === 'succeeded' ? 'https://eduardocr90.github.io/burger-house-restaurant/' : null,
+    status: state,
+    stage: state === 'succeeded' ? 'completed' : 'sanity',
+    attempt_count: state === 'succeeded' ? 2 : 1,
+    retryable: false,
+    error_code: null,
+    sanity:
+      state === 'awaiting'
+        ? {
+            request_id: '00000000-0000-4000-8000-000000000402',
+            restaurant_id: '00000000-0000-4000-8000-000000000407',
+            integration_id: '00000000-0000-4000-8000-000000000404',
+            name: 'Burger House',
+            slug: 'burger-house',
+            project_key: 'r1234567890abcde',
+            project_id: 'lvtvr3ef',
+            manage_url: 'https://www.sanity.io/manage/project/lvtvr3ef',
+            dataset: 'production',
+            status: 'awaiting',
+            stage: 'awaiting_sanity_admin',
+            attempt_count: 1,
+            retryable: false,
+            error_code: null,
+            created_at: '2026-11-01T00:00:00Z',
+            updated_at: '2026-11-01T00:00:01Z',
+          }
+        : null,
+    astro: null,
+    dns:
+      state === 'succeeded'
+        ? {
+            hostname: 'www.burger-house.example',
+            mode: 'subdomain',
+            target: 'eduardocr90.github.io',
+            status: 'dns_pending',
+            records: [
+              {
+                type: 'CNAME',
+                name: 'www.burger-house.example',
+                value: 'eduardocr90.github.io',
+              },
+            ],
+          }
+        : null,
+    created_at: '2026-11-01T00:00:00Z',
+    updated_at: '2026-11-01T00:00:01Z',
+  });
   await page.route(
     `https://${project}.supabase.co/functions/v1/restaurant-provisioning`,
     async (route) => {
       const request = route.request().postDataJSON();
       if (request.operation === 'list') {
         await route.fulfill({ json: [] });
+        return;
+      }
+      if (request.operation === 'verify_sanity_admin') {
+        expect(request).toEqual({
+          operation: 'verify_sanity_admin',
+          payload: { request_id: startedRequestId },
+        });
+        await route.fulfill({ json: aggregate('succeeded') });
         return;
       }
       expect(request).toMatchObject({
@@ -552,49 +627,9 @@ test('Super Admin prepara el alta integral sin credenciales ni IDs externos en e
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
       expect(JSON.stringify(request)).not.toMatch(/token|project_id|repository|organization/i);
-      await route.fulfill({
-        json: {
-          request_id: request.payload.request_id,
-          name: 'Burger House',
-          slug: 'burger-house',
-          client_email: 'burger@example.com',
-          client_role: 'restaurant_owner',
-          template: request.payload.template,
-          visual: request.payload.visual,
-          modules: request.payload.modules,
-          domain: request.payload.domain,
-          sanity_request_id: '00000000-0000-4000-8000-000000000402',
-          astro_request_id: '00000000-0000-4000-8000-000000000403',
-          restaurant_id: restaurantId,
-          integration_id: '00000000-0000-4000-8000-000000000404',
-          invitation_id: '00000000-0000-4000-8000-000000000405',
-          client_user_id: '00000000-0000-4000-8000-000000000406',
-          repository: 'EduardoCR90/burger-house-restaurant',
-          site_url: 'https://eduardocr90.github.io/burger-house-restaurant/',
-          status: 'succeeded',
-          stage: 'completed',
-          attempt_count: 1,
-          retryable: false,
-          error_code: null,
-          sanity: null,
-          astro: null,
-          dns: {
-            hostname: 'www.burger-house.example',
-            mode: 'subdomain',
-            target: 'eduardocr90.github.io',
-            status: 'dns_pending',
-            records: [
-              {
-                type: 'CNAME',
-                name: 'www.burger-house.example',
-                value: 'eduardocr90.github.io',
-              },
-            ],
-          },
-          created_at: '2026-11-01T00:00:00Z',
-          updated_at: '2026-11-01T00:00:01Z',
-        },
-      });
+      startedRequestId = request.payload.request_id;
+      startedModules = request.payload.modules;
+      await route.fulfill({ json: aggregate('awaiting') });
     },
   );
   await page.goto('/administration');
@@ -605,6 +640,13 @@ test('Super Admin prepara el alta integral sin credenciales ni IDs externos en e
   await provisioning.getByLabel('Dirección visual').selectOption('casual');
   await provisioning.getByLabel('Dominio solicitado').fill('www.burger-house.example');
   await provisioning.getByRole('button', { name: 'Preparar restaurante completo' }).click();
+  await expect(page.getByText('Acción manual pendiente')).toBeVisible();
+  await expect(page.getByText('lvtvr3ef')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Abrir proyecto en Sanity Manage' })).toHaveAttribute(
+    'href',
+    'https://www.sanity.io/manage/project/lvtvr3ef',
+  );
+  await page.getByRole('button', { name: 'Verificar y continuar' }).click();
   await expect(page.getByText('Alta completada', { exact: true })).toBeVisible();
   await expect(page.getByText('EduardoCR90/burger-house-restaurant')).toBeVisible();
   await expect(page.getByRole('cell', { name: 'eduardocr90.github.io' })).toBeVisible();

@@ -22,6 +22,9 @@ beforeAll(async () => {
     '202610310002_publications.sql',
     '202611010001_template_governance.sql',
     '202611010002_sanity_provisioning.sql',
+    '202611010003_astro_provisioning.sql',
+    '202611020001_restaurant_provisioning.sql',
+    '202611030001_hybrid_sanity_admin.sql',
   ])
     await db.exec(await readFile(`supabase/migrations/${migration}`, 'utf8'));
   await db.exec(`insert into auth.users values('${admin}'),('${owner}'),('${suspendedAdmin}');
@@ -68,7 +71,10 @@ type ClaimResult = {
     attempt_count: number;
   };
 };
-async function claim(operation: 'start' | 'retry', payload: Record<string, unknown>) {
+async function claim(
+  operation: 'start' | 'retry' | 'verify_admin',
+  payload: Record<string, unknown>,
+) {
   const result = await db.query<{ result: ClaimResult }>(
     'select public.admin_claim_sanity_provisioning($1,$2,$3) as result',
     [admin, operation, payload],
@@ -136,8 +142,20 @@ describe('persistencia y permisos de aprovisionamiento', () => {
       'select lease_token from public.sanity_provisioning_jobs where request_id=$1',
       [request],
     );
-    const lease = current.rows[0].lease_token;
-    for (const stage of ['project_ready', 'dataset_ready', 'credential_pending'])
+    const initialLease = current.rows[0].lease_token;
+    const paused = await db.query<{ result: Record<string, unknown> }>(
+      'select public.admin_pause_sanity_admin($1,$2,$3,$4) as result',
+      [admin, request, initialLease, 'lvtvr3ef'],
+    );
+    expect(paused.rows[0].result).toMatchObject({
+      status: 'awaiting',
+      stage: 'awaiting_sanity_admin',
+      project_key: 'r1234567890abcde',
+      project_id: 'lvtvr3ef',
+    });
+    const verifying = await claim('verify_admin', { request_id: request });
+    const lease = verifying.lease_token!;
+    for (const stage of ['admin_verified', 'dataset_ready', 'credential_pending'])
       await db.query('select public.admin_checkpoint_sanity_provisioning($1,$2,$3,$4)', [
         admin,
         request,
@@ -165,12 +183,44 @@ describe('persistencia y permisos de aprovisionamiento', () => {
     expect(integration.rows).toEqual([
       {
         status: 'pending',
-        external_project_id: 'r1234567890abcde',
+        external_project_id: 'lvtvr3ef',
         external_dataset: 'production',
         key_version: 'v1',
       },
     ]);
     await expect(claim('retry', { request_id: request })).rejects.toThrow(/not safely retryable/);
+  });
+
+  it('mantiene la pausa si el administrador esperado todavía no está listo y bloquea verificaciones concurrentes', async () => {
+    const waitingRequest = id(23);
+    const started = await claim(
+      'start',
+      startPayload({
+        request_id: waitingRequest,
+        request_hash: 'e'.repeat(64),
+        slug: 'waiting-restaurant',
+        project_id: 'r4234567890abcde',
+      }),
+    );
+    await db.query('select public.admin_pause_sanity_admin($1,$2,$3,$4)', [
+      admin,
+      waitingRequest,
+      started.lease_token,
+      'abc123xy',
+    ]);
+    const verifying = await claim('verify_admin', { request_id: waitingRequest });
+    await expect(claim('verify_admin', { request_id: waitingRequest })).rejects.toThrow(
+      /not available/,
+    );
+    const waiting = await db.query<{ result: Record<string, unknown> }>(
+      'select public.admin_wait_sanity_admin($1,$2,$3) as result',
+      [admin, waitingRequest, verifying.lease_token],
+    );
+    expect(waiting.rows[0].result).toMatchObject({
+      status: 'awaiting',
+      stage: 'awaiting_sanity_admin',
+      project_id: 'abc123xy',
+    });
   });
 
   it('permite recuperación explícita solo de fallos seguros y bloquea estados ambiguos', async () => {

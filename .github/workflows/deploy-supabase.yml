@@ -45,7 +45,7 @@ jobs:
       - name: Validate Edge imports and types
         run: npm run check:edge
       - name: Verify runtime keys and scoped Sanity write protection
-        run: npx vitest run tests/edge-environment.test.ts tests/integration-credentials.test.ts tests/sanity-provisioning.test.ts tests/sanity-provisioning-db.test.ts tests/astro-provisioning.test.ts tests/astro-provisioning-db.test.ts tests/restaurant-provisioning.test.ts tests/restaurant-provisioning-db.test.ts tests/sanity-write-safety.test.ts tests/sanity-production-policy.test.ts tests/editor.test.ts tests/publication-mutation.test.ts tests/github-oidc.test.ts
+        run: npx vitest run tests/edge-environment.test.ts tests/integration-credentials.test.ts tests/provisioning-diagnostics.test.ts tests/sanity-provisioning.test.ts tests/sanity-provisioning-db.test.ts tests/sanity-recovery.test.ts tests/astro-provisioning.test.ts tests/astro-provisioning-db.test.ts tests/restaurant-provisioning.test.ts tests/restaurant-provisioning-db.test.ts tests/sanity-write-safety.test.ts tests/sanity-production-policy.test.ts tests/editor.test.ts tests/publication-mutation.test.ts tests/github-oidc.test.ts
       - name: Check CLI source packages against localhost only
         run: node scripts/check-edge-package.mjs
       - name: Deploy content only

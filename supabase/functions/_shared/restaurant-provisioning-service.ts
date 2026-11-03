@@ -15,7 +15,7 @@ export type RestaurantProvisioningClaim = {
 
 export type ChildProvisioningClient = {
   sanity(
-    operation: 'start' | 'retry' | 'status',
+    operation: 'start' | 'retry' | 'status' | 'verify_admin',
     job: RestaurantProvisioningJob,
   ): Promise<SanityProvisioningJob>;
   astro(
@@ -70,10 +70,22 @@ export function restaurantProvisioningClaim(raw: unknown): RestaurantProvisionin
 function childOperation(
   status: 'running' | 'succeeded' | 'failed' | 'manual_review' | undefined,
   retryable: boolean | undefined,
-  requested: 'start' | 'retry' | 'status',
+  requested: 'start' | 'retry' | 'status' | 'verify_sanity_admin',
 ) {
   if (!status) return 'start' as const;
   if (status === 'failed' && retryable && requested === 'retry') return 'retry' as const;
+  return 'status' as const;
+}
+
+function sanityChildOperation(
+  child: SanityProvisioningJob | null,
+  requested: 'start' | 'retry' | 'status' | 'verify_sanity_admin',
+) {
+  if (!child) return 'start' as const;
+  if (requested === 'verify_sanity_admin' && child.status === 'awaiting')
+    return 'verify_admin' as const;
+  if (child.status === 'failed' && child.retryable && requested === 'retry')
+    return 'retry' as const;
   return 'status' as const;
 }
 
@@ -91,7 +103,7 @@ async function failChild(
 
 export async function runRestaurantProvisioning(
   claim: RestaurantProvisioningClaim,
-  requested: 'start' | 'retry' | 'status',
+  requested: 'start' | 'retry' | 'status' | 'verify_sanity_admin',
   dependencies: {
     children: ChildProvisioningClient;
     assignment: ClientAssignment;
@@ -106,7 +118,7 @@ export async function runRestaurantProvisioning(
       if (!dependencies.readiness.sanity)
         throw new RestaurantProvisioningStepError('configuration', true);
       const sanity = await dependencies.children.sanity(
-        childOperation(job.sanity?.status, job.sanity?.retryable, requested),
+        sanityChildOperation(job.sanity, requested),
         job,
       );
       if (sanity.status === 'manual_review' || sanity.status === 'failed')

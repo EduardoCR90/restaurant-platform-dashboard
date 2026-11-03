@@ -3,10 +3,16 @@ import { HttpError } from '../../../shared/editor-service.ts';
 import type { SanityProvisioningErrorCode } from '../../../shared/sanity-provisioning.ts';
 import type { EnvironmentReader } from './environment.ts';
 
+const projectMember = z.object({
+  id: z.string().min(1),
+  roles: z.array(z.object({ name: z.string().min(1) }).passthrough()).default([]),
+  isRobot: z.boolean().optional(),
+});
 const project = z.object({
   id: z.string().regex(/^[a-z0-9]{5,16}$/),
   displayName: z.string(),
   organizationId: z.string().nullable(),
+  members: z.array(projectMember).optional(),
 });
 const dataset = z.object({ name: z.string(), aclMode: z.string() });
 const tokenMetadata = z.object({ id: z.string().min(1), label: z.string() });
@@ -28,10 +34,13 @@ export class SanityManagementError extends Error {
 export function sanityProvisioningConfiguration(env: EnvironmentReader) {
   const token = env('SANITY_PROVISIONER_TOKEN')?.trim();
   const organizationId = env('SANITY_PROVISIONING_ORGANIZATION_ID')?.trim();
+  const expectedAdministratorId = env('SANITY_EXPECTED_ADMIN_USER_ID')?.trim();
   if (!token) throw new HttpError(503, 'Credencial de gestión de Sanity pendiente');
   if (!organizationId || !/^[A-Za-z0-9_-]{1,128}$/.test(organizationId))
     throw new HttpError(503, 'Organización de Sanity pendiente de configuración');
-  return Object.freeze({ token, organizationId });
+  if (!expectedAdministratorId || !/^[A-Za-z0-9_-]{1,160}$/.test(expectedAdministratorId))
+    throw new HttpError(503, 'Identidad administradora de Sanity pendiente de configuración');
+  return Object.freeze({ token, organizationId, expectedAdministratorId });
 }
 
 function classified(status: number) {
@@ -47,7 +56,7 @@ function classified(status: number) {
 export type SanityManagement = ReturnType<typeof sanityManagement>;
 
 export function sanityManagement(
-  configuration: { token: string; organizationId: string },
+  configuration: { token: string; organizationId: string; expectedAdministratorId: string },
   fetcher: typeof fetch = fetch,
 ) {
   const base = 'https://api.sanity.io/v2021-06-07';
@@ -77,15 +86,16 @@ export function sanityManagement(
   }
   return Object.freeze({
     organizationId: configuration.organizationId,
-    async getProject(id: string) {
-      const value = await request('GET', `/projects/${id}`, undefined, true);
+    expectedAdministratorId: configuration.expectedAdministratorId,
+    async getProject(id: string, includeMembers = false) {
+      const suffix = includeMembers ? '?includeMembers=true' : '';
+      const value = await request('GET', `/projects/${id}${suffix}`, undefined, true);
       return value === null ? null : project.parse(value);
     },
-    async createProject(id: string, displayName: string) {
+    async createProject(displayName: string) {
       try {
         return project.parse(
           await request('POST', '/projects', {
-            id,
             displayName,
             organizationId: configuration.organizationId,
             createDefaultCorsOrigin: false,
@@ -111,10 +121,10 @@ export function sanityManagement(
     async listTokens(projectId: string) {
       return z.array(tokenMetadata).parse(await request('GET', `/projects/${projectId}/tokens`));
     },
-    async createEditorToken(projectId: string, label: string) {
+    async createDeveloperToken(projectId: string, label: string) {
       try {
         return createdToken.parse(
-          await request('POST', `/projects/${projectId}/tokens`, { label, roleName: 'editor' }),
+          await request('POST', `/projects/${projectId}/tokens`, { label, roleName: 'developer' }),
         );
       } catch (error) {
         if (error instanceof z.ZodError)
