@@ -47,16 +47,14 @@ test('consulta acepta solo UUID y selecciona únicamente estado seguro', () => {
   assert.match(diagnosticQuery(requestId), /or r\.sanity_request_id=/);
   assert.throws(() => diagnosticQuery("' or true--"));
   const correlated = diagnosticQuery(requestId, {
-    restaurantSlug: 'abre-tu-corazon',
     failedAtUtc: '2026-11-03T15:21:36Z',
   });
-  assert.match(correlated, /r\.slug='abre-tu-corazon'/);
+  assert.match(correlated, /r\.error_code='configuration'/);
   assert.match(correlated, /2026-11-03T15:21:36\.000Z/);
   assert.match(correlated, /interval '10 minutes'/);
   assert.throws(() =>
     diagnosticQuery(requestId, {
-      restaurantSlug: "abre-tu-corazon' or true--",
-      failedAtUtc: '2026-11-03T15:21:36Z',
+      failedAtUtc: 'not-a-date',
     }),
   );
 });
