@@ -72,7 +72,7 @@ export function RestaurantProvisioningPanel() {
   }, [refreshList]);
 
   const run = useCallback(
-    async (operation: 'status' | 'retry', requestId: string) => {
+    async (operation: 'status' | 'retry' | 'verify_sanity_admin', requestId: string) => {
       setBusy(true);
       setError('');
       try {
@@ -92,7 +92,13 @@ export function RestaurantProvisioningPanel() {
   );
 
   useEffect(() => {
-    if (!current || !['running', 'awaiting'].includes(current.status) || busy) return;
+    if (
+      !current ||
+      !['running', 'awaiting'].includes(current.status) ||
+      current.sanity?.stage === 'awaiting_sanity_admin' ||
+      busy
+    )
+      return;
     const timer = window.setTimeout(() => void run('status', current.request_id), 8_000);
     return () => window.clearTimeout(timer);
   }, [busy, current, run]);
@@ -291,6 +297,32 @@ export function RestaurantProvisioningPanel() {
                 ))}
               </ol>
               {current.error_code && <p>Categoría segura: {current.error_code}</p>}
+              {current.sanity?.stage === 'awaiting_sanity_admin' && current.sanity.project_id && (
+                <div className="manual-checkpoint" role="status">
+                  <p className="eyebrow">Acción manual pendiente</p>
+                  <h4>Asignar administrador en Sanity</h4>
+                  <p>
+                    El proyecto de Sanity se ha creado correctamente. Accede a Sanity y asigna tu
+                    usuario con el rol Administrator. Cuando hayas terminado, pulsa Verificar y
+                    continuar.
+                  </p>
+                  <dl>
+                    <div>
+                      <dt>Proyecto</dt>
+                      <dd>{current.sanity.name}</dd>
+                    </div>
+                    <div>
+                      <dt>Project ID</dt>
+                      <dd>{current.sanity.project_id}</dd>
+                    </div>
+                  </dl>
+                  {current.sanity.manage_url && (
+                    <a href={current.sanity.manage_url} target="_blank" rel="noreferrer">
+                      Abrir proyecto en Sanity Manage
+                    </a>
+                  )}
+                </div>
+              )}
               {current.site_url && (
                 <p>
                   URL provisional:{' '}
@@ -347,6 +379,18 @@ export function RestaurantProvisioningPanel() {
                     Reintentar etapa segura
                   </button>
                 )}
+                {current.status === 'awaiting' &&
+                  current.stage === 'sanity' &&
+                  current.sanity?.stage === 'awaiting_sanity_admin' && (
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={busy}
+                      onClick={() => void run('verify_sanity_admin', current.request_id)}
+                    >
+                      Verificar y continuar
+                    </button>
+                  )}
               </div>
             </article>
           )}

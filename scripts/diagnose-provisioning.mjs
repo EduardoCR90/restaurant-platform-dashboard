@@ -7,6 +7,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export const requiredSanitySecrets = [
   'SANITY_PROVISIONER_TOKEN',
   'SANITY_PROVISIONING_ORGANIZATION_ID',
+  'SANITY_EXPECTED_ADMIN_USER_ID',
   'APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY',
   'APP_INTEGRATION_CREDENTIAL_KEYS',
 ];

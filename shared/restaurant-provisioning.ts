@@ -47,7 +47,7 @@ export const restaurantProvisioningRequest = z.discriminatedUnion('operation', [
     .strict(),
   z
     .object({
-      operation: z.enum(['retry', 'status']),
+      operation: z.enum(['retry', 'status', 'verify_sanity_admin']),
       payload: z.object({ request_id: z.uuid() }).strict(),
     })
     .strict(),

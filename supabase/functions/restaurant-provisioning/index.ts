@@ -184,11 +184,17 @@ Deno.serve(
         astro_request_id: identity.astroRequestId,
       });
     }
-    const { data, error } = await admin.rpc('admin_claim_restaurant_provisioning', {
-      actor: user.id,
-      operation: input.operation,
-      payload,
-    });
+    const { data, error } =
+      input.operation === 'verify_sanity_admin'
+        ? await admin.rpc('admin_resume_restaurant_sanity_admin', {
+            actor: user.id,
+            request: input.payload.request_id,
+          })
+        : await admin.rpc('admin_claim_restaurant_provisioning', {
+            actor: user.id,
+            operation: input.operation,
+            payload,
+          });
     if (error || !data)
       throw new HttpError(409, 'Alta rechazada por conflicto, estado o ejecución concurrente');
     const claim = restaurantProvisioningClaim(data);

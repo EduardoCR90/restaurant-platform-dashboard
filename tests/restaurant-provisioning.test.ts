@@ -55,7 +55,9 @@ const sanity = {
   integration_id: id('5'),
   name: job.name,
   slug: job.slug,
+  project_key: 'r1234567890abcde',
   project_id: 'r1234567890abcde',
+  manage_url: 'https://www.sanity.io/manage/project/r1234567890abcde',
   dataset: 'production' as const,
   status: 'succeeded' as const,
   stage: 'completed' as const,
@@ -198,6 +200,29 @@ describe('complete restaurant provisioning', () => {
       integrationId: sanity.integration_id,
     });
     expect(assignment.ensure).not.toHaveBeenCalled();
+  });
+
+  it('keeps the aggregate paused and only verifies the expected Sanity admin on explicit action', async () => {
+    const waitingSanity = {
+      ...sanity,
+      status: 'awaiting' as const,
+      stage: 'awaiting_sanity_admin' as const,
+    };
+    const waiting = { ...job, status: 'awaiting' as const, sanity: waitingSanity };
+    const database = store(waiting);
+    const sanityCall = vi.fn(async () => waitingSanity);
+    const result = await runRestaurantProvisioning(
+      { execute: true, leaseToken: id('9'), job: waiting },
+      'verify_sanity_admin',
+      {
+        children: { sanity: sanityCall, astro: vi.fn() },
+        assignment: { ensure: vi.fn() },
+        store: database,
+        readiness: { sanity: true, astro: true, invitations: true },
+      },
+    );
+    expect(sanityCall).toHaveBeenCalledWith('verify_admin', waiting);
+    expect(result).toMatchObject({ status: 'awaiting', stage: 'sanity' });
   });
 
   it('finishes an OIDC-confirmed website and reuses a known client without another invitation', async () => {

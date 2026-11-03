@@ -36,6 +36,7 @@ beforeAll(async () => {
     '202611010002_sanity_provisioning.sql',
     '202611010003_astro_provisioning.sql',
     '202611020001_restaurant_provisioning.sql',
+    '202611030001_hybrid_sanity_admin.sql',
   ])
     await db.exec(await readFile(`supabase/migrations/${migration}`, 'utf8'));
   await db.exec(`insert into auth.users values('${admin}','admin@example.com'),('${client}','client@example.com'),('${outsider}','other@example.com');
@@ -110,6 +111,11 @@ describe('complete provisioning persistence and tenant isolation', () => {
     await expect(
       asUser(client, () => db.query('select * from public.restaurant_provisioning_jobs')),
     ).rejects.toThrow(/permission denied/);
+    await expect(
+      asUser(client, () =>
+        db.query('select public.admin_resume_restaurant_sanity_admin($1,$2)', [client, request]),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it('registers one immutable plan without creating provider resources', async () => {
@@ -155,6 +161,61 @@ describe('complete provisioning persistence and tenant isolation', () => {
         }),
       ]),
     ).rejects.toThrow(/Invalid provisioning request/);
+  });
+
+  it('reanuda la solicitud agregada solo cuando su hijo exacto espera al administrador', async () => {
+    const parentRequest = id(40);
+    const childRequest = id(41);
+    const parent = await db.query<{ result: { lease_token: string } }>(
+      'select public.admin_claim_restaurant_provisioning($1,$2,$3) as result',
+      [
+        admin,
+        'start',
+        payload({
+          request_id: parentRequest,
+          request_hash: '6'.repeat(64),
+          slug: 'admin-pause-restaurant',
+          sanity_request_id: childRequest,
+          astro_request_id: id(42),
+          custom_domain: '',
+          domain_mode: '',
+        }),
+      ],
+    );
+    const child = await db.query<{ result: { lease_token: string } }>(
+      'select public.admin_claim_sanity_provisioning($1,$2,$3) as result',
+      [
+        admin,
+        'start',
+        {
+          request_id: childRequest,
+          request_hash: '7'.repeat(64),
+          name: 'Admin pause restaurant',
+          slug: 'admin-pause-restaurant',
+          project_id: 'r7234567890abcde',
+          dataset: 'production',
+        },
+      ],
+    );
+    await db.query('select public.admin_pause_sanity_admin($1,$2,$3,$4)', [
+      admin,
+      childRequest,
+      child.rows[0].result.lease_token,
+      'project77',
+    ]);
+    await db.query('select public.admin_wait_restaurant_provisioning($1,$2,$3)', [
+      admin,
+      parentRequest,
+      parent.rows[0].result.lease_token,
+    ]);
+    const resumed = await db.query<{ result: { execute: boolean; job: { status: string } } }>(
+      'select public.admin_resume_restaurant_sanity_admin($1,$2) as result',
+      [admin, parentRequest],
+    );
+    expect(resumed.rows[0].result).toMatchObject({ execute: true, job: { status: 'running' } });
+    await expect(
+      db.query('select public.admin_resume_restaurant_sanity_admin($1,$2)', [admin, parentRequest]),
+    ).rejects.toThrow(/not available/);
   });
 
   it('accepts matching child evidence and activates the client only after both complete', async () => {

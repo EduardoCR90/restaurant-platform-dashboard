@@ -53,6 +53,18 @@ export async function configureTemplateGovernance(operation, api) {
     completeValues.every((v) => v === true) || completeValues.every((v) => v === false),
     'Partial complete provisioning schema; stop for review',
   );
+  const hybridQuery =
+    "select exists(select 1 from information_schema.columns where table_schema='public' and table_name='sanity_provisioning_jobs' and column_name='external_project_id') as external_project_id, to_regprocedure('public.admin_pause_sanity_admin(uuid,uuid,uuid,text)') is not null as pause_rpc, to_regprocedure('public.admin_wait_sanity_admin(uuid,uuid,uuid)') is not null as wait_rpc, to_regprocedure('public.admin_resume_restaurant_sanity_admin(uuid,uuid)') is not null as resume_rpc";
+  const hybrid = await api('database/query', {
+    method: 'POST',
+    body: { query: hybridQuery, read_only: true },
+  });
+  const hybridValues = Object.values(hybrid[0]);
+  assert.equal(hybridValues.length, 4);
+  assert.ok(
+    hybridValues.every((v) => v === true) || hybridValues.every((v) => v === false),
+    'Partial hybrid Sanity schema; stop for review',
+  );
   if (operation === 'inspect')
     return {
       status: 'inspected-read-only',
@@ -60,6 +72,7 @@ export async function configureTemplateGovernance(operation, api) {
       provisioningReady: provisioningValues.every(Boolean),
       astroProvisioningReady: astroValues.every(Boolean),
       completeProvisioningReady: completeValues.every(Boolean),
+      hybridSanityReady: hybridValues.every(Boolean),
     };
   const catalog = JSON.parse(
     await readFile(new URL('../ops/template-releases.json', import.meta.url), 'utf8'),
@@ -121,6 +134,17 @@ export async function configureTemplateGovernance(operation, api) {
       },
     });
 
+  if (hybridValues.every((v) => v === false))
+    await api('database/query', {
+      method: 'POST',
+      body: {
+        query: await readFile(
+          new URL('../supabase/migrations/202611030001_hybrid_sanity_admin.sql', import.meta.url),
+          'utf8',
+        ),
+      },
+    });
+
   // Catalog is reviewed code, not HTTP input. Refuse conflicting immutable releases.
   const rows = catalog
     .map(
@@ -136,7 +160,7 @@ export async function configureTemplateGovernance(operation, api) {
     method: 'POST',
     body: {
       query:
-        "select not has_column_privilege('authenticated','public.restaurant_modules','enabled','UPDATE') as modules_protected, has_function_privilege('service_role','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') as admin_protected, has_function_privilege('service_role','public.admin_claim_sanity_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_sanity_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.integration_credentials','SELECT') as provisioning_protected, has_function_privilege('service_role','public.admin_claim_astro_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_astro_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.astro_provisioning_jobs','SELECT') as astro_provisioning_protected, has_function_privilege('service_role','public.admin_claim_restaurant_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_restaurant_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.restaurant_provisioning_jobs','SELECT') as complete_provisioning_protected",
+        "select not has_column_privilege('authenticated','public.restaurant_modules','enabled','UPDATE') as modules_protected, has_function_privilege('service_role','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_website_configure(uuid,text,jsonb)','EXECUTE') as admin_protected, has_function_privilege('service_role','public.admin_claim_sanity_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_sanity_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.integration_credentials','SELECT') as provisioning_protected, has_function_privilege('service_role','public.admin_claim_astro_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_astro_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.astro_provisioning_jobs','SELECT') as astro_provisioning_protected, has_function_privilege('service_role','public.admin_claim_restaurant_provisioning(uuid,text,jsonb)','EXECUTE') and not has_function_privilege('authenticated','public.admin_claim_restaurant_provisioning(uuid,text,jsonb)','EXECUTE') and not has_table_privilege('authenticated','public.restaurant_provisioning_jobs','SELECT') as complete_provisioning_protected, has_function_privilege('service_role','public.admin_resume_restaurant_sanity_admin(uuid,uuid)','EXECUTE') and not has_function_privilege('authenticated','public.admin_resume_restaurant_sanity_admin(uuid,uuid)','EXECUTE') as hybrid_protected",
       read_only: true,
     },
   });
@@ -145,6 +169,7 @@ export async function configureTemplateGovernance(operation, api) {
   assert.equal(checks[0]?.provisioning_protected, true);
   assert.equal(checks[0]?.astro_provisioning_protected, true);
   assert.equal(checks[0]?.complete_provisioning_protected, true);
+  assert.equal(checks[0]?.hybrid_protected, true);
   return {
     status: 'metadata-permission-and-provisioning-policy-ready',
     approvedReleases: catalog.length,

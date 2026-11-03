@@ -9,6 +9,7 @@ import { sanityProvisioningConfiguration } from './sanity-management.ts';
 export const sanityProvisioningSecretNames = [
   'SANITY_PROVISIONER_TOKEN',
   'SANITY_PROVISIONING_ORGANIZATION_ID',
+  'SANITY_EXPECTED_ADMIN_USER_ID',
   'APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY',
   'APP_INTEGRATION_CREDENTIAL_KEYS',
 ] as const;
@@ -29,7 +30,8 @@ export function sanityProvisioningDiagnostics(
   const invalid: SanityConfigurationIssue[] = [];
   if (
     !missing.includes('SANITY_PROVISIONER_TOKEN') &&
-    !missing.includes('SANITY_PROVISIONING_ORGANIZATION_ID')
+    !missing.includes('SANITY_PROVISIONING_ORGANIZATION_ID') &&
+    !missing.includes('SANITY_EXPECTED_ADMIN_USER_ID')
   ) {
     try {
       sanityProvisioningConfiguration(env);
@@ -58,7 +60,7 @@ type ConfigurationLog = Readonly<{
   event: 'provisioning.configuration';
   component: 'restaurant-provisioning' | 'sanity-provisioning';
   request_id: string;
-  operation: 'start' | 'retry' | 'status';
+  operation: 'start' | 'retry' | 'status' | 'verify_admin' | 'verify_sanity_admin';
   outcome: 'rejected';
   missing: readonly SanityProvisioningSecretName[];
   invalid: readonly SanityConfigurationIssue[];

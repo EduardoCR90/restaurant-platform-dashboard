@@ -18,6 +18,7 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
       return [
         { name: 'SANITY_PROVISIONER_TOKEN', value: 'private-token' },
         { name: 'SANITY_PROVISIONING_ORGANIZATION_ID', digest: 'private-digest' },
+        { name: 'SANITY_EXPECTED_ADMIN_USER_ID' },
       ];
     return [
       {
@@ -63,6 +64,7 @@ test('ausencia de fila conserva el diagnóstico seguro de nombres', async () => 
   await expectNoRequest('request_not_found_with_required_secret_names_present', [
     { name: 'SANITY_PROVISIONER_TOKEN' },
     { name: 'SANITY_PROVISIONING_ORGANIZATION_ID' },
+    { name: 'SANITY_EXPECTED_ADMIN_USER_ID' },
     { name: 'APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY' },
     { name: 'APP_INTEGRATION_CREDENTIAL_KEYS' },
   ]);
