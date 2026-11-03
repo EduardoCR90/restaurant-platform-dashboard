@@ -19,6 +19,10 @@ import {
   runRestaurantProvisioning,
   type RestaurantProvisioningStore,
 } from '../_shared/restaurant-provisioning-service.ts';
+import {
+  logProvisioningDiagnostic,
+  sanityProvisioningDiagnostics,
+} from '../_shared/provisioning-diagnostics.ts';
 
 function databaseFailure(): never {
   throw new HttpError(503, 'No se pudo registrar el estado del alta');
@@ -26,13 +30,9 @@ function databaseFailure(): never {
 
 function configurationReady(env: (name: string) => string | undefined) {
   const all = (...names: string[]) => names.every((name) => Boolean(env(name)?.trim()));
+  const sanity = sanityProvisioningDiagnostics(env);
   return {
-    sanity: all(
-      'SANITY_PROVISIONER_TOKEN',
-      'SANITY_PROVISIONING_ORGANIZATION_ID',
-      'APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY',
-      'APP_INTEGRATION_CREDENTIAL_KEYS',
-    ),
+    sanity,
     astro: all(
       'GITHUB_PROVISIONER_TOKEN',
       'GITHUB_REPOSITORY_OWNER',
@@ -194,6 +194,18 @@ Deno.serve(
     const claim = restaurantProvisioningClaim(data);
     if (!claim.execute) return claim.job;
 
+    const configuration = configurationReady(environment);
+    if (claim.job.stage === 'sanity' && !configuration.sanity.ready)
+      logProvisioningDiagnostic({
+        event: 'provisioning.configuration',
+        component: 'restaurant-provisioning',
+        request_id: claim.job.request_id,
+        operation: input.operation,
+        outcome: 'rejected',
+        missing: configuration.sanity.missing,
+        invalid: configuration.sanity.invalid,
+      });
+
     const authorization = request.headers.get('Authorization');
     const origin = request.headers.get('Origin');
     if (!authorization?.startsWith('Bearer ') || !origin)
@@ -201,7 +213,11 @@ Deno.serve(
     const root = new URL(url);
     const child = (name: string) => new URL(`/functions/v1/${name}`, root).href;
     return runRestaurantProvisioning(claim, input.operation, {
-      readiness: configurationReady(environment),
+      readiness: {
+        sanity: configuration.sanity.ready,
+        astro: configuration.astro,
+        invitations: configuration.invitations,
+      },
       children: {
         async sanity(operation, job) {
           const body =

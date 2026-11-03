@@ -20,6 +20,10 @@ import {
   type ProvisioningStore,
 } from '../_shared/sanity-provisioning-service.ts';
 import { provisioningIdentity } from '../_shared/provisioning-request.ts';
+import {
+  logProvisioningDiagnostic,
+  sanityProvisioningDiagnostics,
+} from '../_shared/provisioning-diagnostics.ts';
 
 function databaseFailure(error: unknown): never {
   if (error) throw new HttpError(503, 'No se pudo registrar el estado de aprovisionamiento');
@@ -89,6 +93,17 @@ Deno.serve(
     }
 
     const environment = (name: string) => Deno.env.get(name);
+    const diagnostics = sanityProvisioningDiagnostics(environment);
+    if (!diagnostics.ready)
+      logProvisioningDiagnostic({
+        event: 'provisioning.configuration',
+        component: 'sanity-provisioning',
+        request_id: input.payload.request_id,
+        operation: input.operation,
+        outcome: 'rejected',
+        missing: diagnostics.missing,
+        invalid: diagnostics.invalid,
+      });
     const sanityConfiguration = sanityProvisioningConfiguration(environment);
     const keyring = credentialKeyring(environment);
     const claimPayload: Record<string, unknown> = { request_id: input.payload.request_id };
@@ -119,6 +134,16 @@ Deno.serve(
       store: provisioningStore(admin, user.id, claim.job.request_id, claim.leaseToken!),
       encrypt: (token, integrationId) =>
         encryptIntegrationCredential(token, integrationId, keyring),
+      observe: (event) =>
+        logProvisioningDiagnostic({
+          event: 'sanity-provisioning.failure',
+          component: 'sanity-provisioning',
+          request_id: claim.job.request_id,
+          stage: event.stage,
+          error_code: event.errorCode,
+          retryable: event.retryable,
+          manual_review: event.manualReview,
+        }),
     });
   }),
 );

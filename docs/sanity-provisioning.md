@@ -36,6 +36,8 @@ En **Supabase → Edge Functions → Secrets**, configura:
 - `APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY=v1`.
 - `APP_INTEGRATION_CREDENTIAL_KEYS`: JSON `{"v1":"…"}` donde el valor es una clave aleatoria de 32 bytes codificada base64url. Guarda versiones antiguas durante una rotación.
 
+Los cuatro nombres forman una sola unidad de configuración. Tener únicamente los dos secretos `SANITY_*` no permite aprovisionar: el backend debe poder cifrar el token editorial antes de pedir a Sanity que lo cree. En el alta integral, `failed/configuration` durante la etapa `sanity` significa que el runtime vio alguno de estos cuatro nombres ausente o inválido y **no llamó a la API de Sanity**. Los rechazos posteriores del proveedor se registran en el trabajo hijo como `credentials`, `permissions`, `billing_or_quota`, `connection` o `provider_response`.
+
 Genera la clave fuera del repositorio, por ejemplo con Node 22:
 
 ```bash
@@ -57,5 +59,7 @@ Antes de la primera creación real:
 3. usa un nombre/slug de ensayo y conserva el `request_id` mostrado por el panel;
 4. verifica el proyecto, `production`, la integración cifrada y el restaurante `pending`;
 5. no repitas una solicitud `manual_review`: inspecciona primero la etiqueta `restaurant-platform-<integration UUID>`.
+
+Para una solicitud existente fallida, ejecuta manualmente **Diagnose provisioning (read-only)** desde `main` e introduce su `request_id`. El workflow solo consulta las filas de estado y la presencia de los cuatro nombres de secreto mediante la Management API; no imprime valores/digests, no crea recursos y no ejecuta `retry`. Los logs de Edge posteriores incluyen eventos JSON `provisioning.configuration` y `sanity-provisioning.failure` con request, etapa, categoría y nombres ausentes, pero nunca excepciones, respuestas, cabeceras, emails o credenciales.
 
 Los tests sustituyen HTTP, tokens y cifrado con datos sintéticos. CI aplica PostgreSQL en memoria y empaqueta las Edge Functions contra una API local. Ninguna prueba consulta o crea proyectos reales. Integrar la PR despliega código y esquema aditivo; no ejecuta el endpoint de aprovisionamiento.

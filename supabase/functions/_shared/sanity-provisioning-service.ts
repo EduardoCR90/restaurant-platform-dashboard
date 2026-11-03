@@ -31,6 +31,24 @@ export type ProvisioningStore = {
   }): Promise<SanityProvisioningJob>;
 };
 
+export type SanityProvisioningObservation = Readonly<{
+  stage: SanityProvisioningStage;
+  errorCode: SanityProvisioningErrorCode;
+  retryable: boolean;
+  manualReview: boolean;
+}>;
+
+function observe(
+  listener: ((event: SanityProvisioningObservation) => void) | undefined,
+  event: SanityProvisioningObservation,
+) {
+  try {
+    listener?.(event);
+  } catch {
+    // La observabilidad nunca puede cambiar el estado del aprovisionamiento.
+  }
+}
+
 function assertProject(
   value: SanityProject,
   expected: { id: string; name: string; organizationId: string },
@@ -88,6 +106,7 @@ export async function runSanityProvisioning(
     sanity: SanityManagement;
     store: ProvisioningStore;
     encrypt(token: string, integrationId: string): Promise<EncryptedCredential>;
+    observe?: (event: SanityProvisioningObservation) => void;
   },
 ): Promise<SanityProvisioningJob> {
   if (!claim.execute) return claim.job;
@@ -142,6 +161,12 @@ export async function runSanityProvisioning(
             stage !== 'credential_pending',
             tokenCreated || stage === 'credential_pending',
           );
+    observe(dependencies.observe, {
+      stage,
+      errorCode: known.code,
+      retryable: known.retryable && !known.ambiguous,
+      manualReview: known.ambiguous,
+    });
     return dependencies.store.fail({
       code: known.code,
       retryable: known.retryable && !known.ambiguous,
