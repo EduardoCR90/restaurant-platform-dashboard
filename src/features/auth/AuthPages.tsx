@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { supabase, configurationError } from '../../services/platform';
+import { supabase, configurationError, requestPasswordReset } from '../../services/platform';
 import { useAuth } from './AuthProvider';
 import { Feedback } from '../../components/Feedback';
 export function AuthPage({ mode = 'login' }: { mode?: 'login' | 'reset' | 'update' }) {
@@ -35,9 +35,10 @@ export function AuthPage({ mode = 'login' }: { mode?: 'login' | 'reset' | 'updat
       }
       if (mode === 'reset') {
         z.email().parse(email);
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: new URL('/auth/update-password', window.location.origin).href,
-        });
+        const { error } = await requestPasswordReset(
+          email,
+          new URL('/auth/update-password', window.location.origin).href,
+        );
         if (error) throw new Error('No se pudo solicitar la recuperación. Inténtalo más tarde.');
         setMessage('Si la cuenta existe, recibirás un enlace para recuperar el acceso.');
       }
@@ -70,6 +71,11 @@ export function AuthPage({ mode = 'login' }: { mode?: 'login' | 'reset' | 'updat
       : mode === 'reset'
         ? 'Recupera\nel acceso.'
         : 'Una nueva\ncontraseña.';
+  const unavailableUpdate =
+    mode === 'update' &&
+    !auth.loading &&
+    auth.emailLink.status !== 'processing' &&
+    (auth.emailLink.status === 'error' || !auth.session);
   return (
     <main className="auth-layout">
       <aside className="auth-story">
@@ -99,61 +105,87 @@ export function AuthPage({ mode = 'login' }: { mode?: 'login' | 'reset' | 'updat
               ? 'Te enviaremos las instrucciones por correo.'
               : 'Usa una contraseña única de al menos 12 caracteres.'}
         </p>
-        <form onSubmit={submit}>
-          {mode !== 'update' && (
-            <label>
-              Email
-              <input
-                autoComplete="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-          )}
-          {mode !== 'reset' && (
-            <>
+        {mode === 'update' && (auth.loading || auth.emailLink.status === 'processing') ? (
+          <p role="status">Comprobando el enlace seguro…</p>
+        ) : unavailableUpdate ? (
+          <div>
+            <Feedback
+              error={
+                auth.emailLink.status === 'error'
+                  ? auth.emailLink.message
+                  : 'Abre un enlace de recuperación o invitación válido para continuar.'
+              }
+            />
+            <Link className="button primary" to="/auth/reset-password">
+              Solicitar un enlace nuevo
+            </Link>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            {mode !== 'update' && (
               <label>
-                Contraseña
-                <div className="password-input">
-                  <input
-                    required
-                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                    type={visible ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button type="button" aria-pressed={visible} onClick={() => setVisible(!visible)}>
-                    {visible ? 'Ocultar' : 'Mostrar'}
-                  </button>
-                </div>
+                Email
+                <input
+                  autoComplete="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </label>
-              {mode === 'update' && (
-                <label>
-                  Repite la contraseña
-                  <input
-                    required
-                    type={visible ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    value={confirmation}
-                    onChange={(e) => setConfirmation(e.target.value)}
-                  />
-                </label>
-              )}
-            </>
-          )}
-          <Feedback error={error || auth.error || ''} message={message} />
-          <button className="primary" disabled={busy || !!configurationError}>
-            {busy
-              ? 'Un momento…'
-              : mode === 'login'
-                ? 'Entrar en mi espacio'
-                : mode === 'reset'
-                  ? 'Enviar instrucciones'
-                  : 'Guardar contraseña'}
-          </button>
-        </form>
+            )}
+            {mode !== 'reset' && (
+              <>
+                <div>
+                  <label htmlFor="auth-password">Contraseña</label>
+                  <div className="password-input">
+                    <input
+                      id="auth-password"
+                      required
+                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                      type={visible ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      aria-pressed={visible}
+                      onClick={() => setVisible(!visible)}
+                    >
+                      {visible ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </div>
+                </div>
+                {mode === 'update' && (
+                  <label htmlFor="auth-password-confirmation">
+                    Repite la contraseña
+                    <input
+                      id="auth-password-confirmation"
+                      required
+                      type={visible ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      value={confirmation}
+                      onChange={(e) => setConfirmation(e.target.value)}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+            <Feedback
+              error={error || (mode === 'update' ? '' : auth.error || '')}
+              message={message}
+            />
+            <button className="primary" disabled={busy || !!configurationError}>
+              {busy
+                ? 'Un momento…'
+                : mode === 'login'
+                  ? 'Entrar en mi espacio'
+                  : mode === 'reset'
+                    ? 'Enviar instrucciones'
+                    : 'Guardar contraseña'}
+            </button>
+          </form>
+        )}
         {mode === 'login' ? (
           <Link to="/auth/reset-password">¿Has olvidado tu contraseña?</Link>
         ) : (

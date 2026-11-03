@@ -4,7 +4,7 @@
 
 1. Revisa e integra la PR solo cuando se autorice. Importa `EduardoCR90/restaurant-platform-dashboard` en Vercel; framework Vite, build `npm run build`, salida dist.
 2. Configura únicamente las dos variables VITE_ de .env.example. El valor publishable es público. Nunca pongas service_role, contraseña PostgreSQL o token Sanity en Vercel para este frontend.
-3. Configura antes la base y Edge de Supabase siguiendo supabase.md. CORS: origen exacto de Vercel; Auth: Site URL y destinos /auth/update-password. No habilites previews arbitrarios con acceso a producción.
+3. Configura antes la base y Edge de Supabase siguiendo supabase.md. CORS: origen exacto de Vercel; Auth: Site URL `https://restaurant-platform-dashboard-xi.vercel.app` y redirect exacto `https://restaurant-platform-dashboard-xi.vercel.app/auth/update-password`. No habilites previews arbitrarios con acceso a producción.
 4. Vercel proporciona HTTPS. vercel.json reescribe rutas SPA y añade CSP, no-store, frame denial, nosniff, referrer policy y permisos del navegador restringidos. Si cambias proyecto Supabase, actualiza connect-src al origen exacto; no uses comodín para simplificar.
 5. Despliega solo después de autorización. Comprueba acceso directo y refresco en /content/page y /auth/update-password. Las rutas privadas son protegidas por sesión + perfil y la seguridad de datos por RLS/Edge.
 
@@ -16,7 +16,7 @@ Con la configuración remota completada en un entorno de ensayo:
 
 1. Abre el dominio HTTPS a 390px o desde un móvil. Una ruta privada sin sesión debe llevar a login; no debe haber scroll horizontal.
 2. Inicia sesión con un usuario invitado real. Refresca y verifica persistencia. Prueba logout y acceso directo posterior: debe requerir login.
-3. Prueba recuperación desde el email y fija una contraseña; comprueba que no se imprime ni permanece en la URL el token.
+3. Solicita una recuperación y abre el correo en incógnito; debe mostrarse el formulario de contraseña sin una sesión previa. Comprueba además un enlace caducado y una invitación. Ningún token debe permanecer en la URL.
 4. Selecciona Salitre de ensayo y, si tienes otra membresía, el segundo restaurante. Verifica que cambia el contenido y no queda el editor anterior en pantalla.
 5. Abre módulos: contratación, activación y estado futuro deben distinguirse. Un staff o usuario sin módulo no debe entrar al editor ni usando su URL directa.
 6. En un dataset de ensayo crea una página, añade/reordena varios bloques y guarda. Desde otra sesión modifica el mismo borrador y verifica el conflicto 409 al guardar/publicar la primera.

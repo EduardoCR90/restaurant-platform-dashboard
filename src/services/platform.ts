@@ -24,21 +24,38 @@ const env = z.object({ url: z.url(), key: z.string().min(1) }).safeParse({
   url: import.meta.env.VITE_SUPABASE_URL,
   key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
 });
+const supabaseUrl = env.success ? env.data.url : 'http://127.0.0.1:54321';
+const supabaseKey = env.success ? env.data.key : 'not-configured';
 export const configurationError = env.success
   ? null
   : 'Falta configurar VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY. Consulta .env.example.';
-export const supabase = createClient(
-  env.success ? env.data.url : 'http://127.0.0.1:54321',
-  env.success ? env.data.key : 'not-configured',
-  {
-    auth: {
-      flowType: 'pkce',
-      detectSessionInUrl: true,
-      persistSession: true,
-      autoRefreshToken: true,
-    },
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    flowType: 'pkce',
+    // Los callbacks se procesan de forma explícita en emailLink.ts para
+    // aceptar PKCE, token_hash e invitaciones/recuperaciones entre navegadores.
+    detectSessionInUrl: false,
+    persistSession: true,
+    autoRefreshToken: true,
   },
-);
+});
+
+// La solicitud de recuperación usa implicit únicamente para que el enlace pueda
+// abrirse en otro navegador. La sesión resultante la valida y conserva el cliente
+// principal; este cliente no persiste ninguna sesión.
+const passwordRecoveryClient = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    flowType: 'implicit',
+    detectSessionInUrl: false,
+    persistSession: false,
+    autoRefreshToken: false,
+    storageKey: 'restaurant-platform-password-recovery-request',
+  },
+});
+
+export async function requestPasswordReset(email: string, redirectTo: string) {
+  return passwordRecoveryClient.auth.resetPasswordForEmail(email, { redirectTo });
+}
 const restaurantSchema = z.object({
   id: z.uuid(),
   name: z.string(),

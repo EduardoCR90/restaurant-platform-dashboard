@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { configurationError, loadProfile, supabase, type Profile } from '../../services/platform';
-import { finishEmailLink } from './emailLink';
+import { finishEmailLink, hasEmailLinkAttempt, type EmailLinkResult } from './emailLink';
 type AuthState = {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
   error: string | null;
+  emailLink: EmailLinkResult | { status: 'processing'; type: null; message: null };
   refresh: () => Promise<void>;
 };
 const Context = createContext<AuthState | null>(null);
@@ -15,6 +16,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(configurationError);
+  const [emailLink, setEmailLink] = useState<AuthState['emailLink']>(() =>
+    hasEmailLinkAttempt()
+      ? { status: 'processing', type: null, message: null }
+      : { status: 'none', type: null, message: null },
+  );
   async function refresh() {
     if (session) setProfile(await loadProfile(session.user.id));
   }
@@ -46,13 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === 'PASSWORD_RECOVERY')
+        setEmailLink({ status: 'ready', type: 'recovery', message: null });
       queueMicrotask(() => {
         void sync(next);
       });
     });
     void finishEmailLink()
-      .then(() => supabase.auth.getSession())
+      .then((result) => {
+        if (active) setEmailLink(result);
+        return supabase.auth.getSession();
+      })
       .then(({ data, error }) => {
         if (error) {
           if (active) {
@@ -63,7 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (active) {
-          setError('Enlace de acceso no válido o caducado. Solicita uno nuevo.');
+          setEmailLink({
+            status: 'error',
+            type: null,
+            message: 'El enlace ha caducado o ya se ha utilizado. Solicita uno nuevo.',
+          });
           setLoading(false);
         }
       });
@@ -74,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   return (
-    <Context.Provider value={{ session, profile, loading, error, refresh }}>
+    <Context.Provider value={{ session, profile, loading, error, emailLink, refresh }}>
       {children}
     </Context.Provider>
   );

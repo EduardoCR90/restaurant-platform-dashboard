@@ -1,6 +1,7 @@
 import { StrictMode, Component, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/router';
+import { normalizeEmailLinkRoute } from './features/auth/emailLink';
 import './styles/global.css';
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -19,6 +20,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
     );
   }
 }
+normalizeEmailLinkRoute();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
