@@ -42,4 +42,32 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PROVISIONING_REQUEST_ID: ${{ inputs.request_id || '594ef199-3f83-4d3d-9ffd-4fcc87f2c471' }}
           PROVISIONING_FAILED_AT_UTC: ${{ inputs.failed_at_utc || '2026-11-04T13:25:29Z' }}
-        run: node scripts/diagnose-provisioning.mjs
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/diagnose-provisioning.mjs
+          else
+            node --input-type=module <<'NODE'
+          import {
+            diagnoseProvisioning,
+            DiagnosticFailure,
+            managementApi,
+          } from './scripts/diagnose-provisioning.mjs';
+          try {
+            const result = await diagnoseProvisioning(
+              process.env.PROVISIONING_REQUEST_ID,
+              managementApi(process.env.SUPABASE_ACCESS_TOKEN),
+              {failedAtUtc: process.env.PROVISIONING_FAILED_AT_UTC},
+            );
+            console.log(JSON.stringify(result));
+          } catch (error) {
+            console.error(
+              error instanceof DiagnosticFailure
+                ? error.message
+                : error?.message?.startsWith('Diagnóstico rechazado (HTTP ')
+                  ? error.message
+                  : 'Diagnóstico detenido: no se muestran secretos, filas completas ni respuestas privadas.',
+            );
+            process.exitCode = 1;
+          }
+          NODE
+          fi
