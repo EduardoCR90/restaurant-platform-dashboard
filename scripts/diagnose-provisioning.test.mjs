@@ -152,7 +152,10 @@ test('cliente de gestión limita endpoints y nunca imprime respuestas', async ()
   assert.match(calls[0].url, /wanrzgumoamryuybmopa\/secrets$/);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer management-private');
   await api('edge-logs', { method: 'POST', body: edgeLogQuery('2026-11-04T12:53:29Z') });
-  assert.match(calls[1].url, /analytics\/endpoints\/logs\.all$/);
+  assert.match(calls[1].url, /analytics\/endpoints\/logs\.all\?/);
+  assert.match(calls[1].url, /iso_timestamp_start=/);
+  assert.equal(calls[1].options.method, 'GET');
+  assert.equal(calls[1].options.body, undefined);
   await assert.rejects(() => api('unsupported'));
 });
 

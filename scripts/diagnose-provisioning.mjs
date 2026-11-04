@@ -206,13 +206,24 @@ export function managementApi(token, request = fetch) {
   return async (path, options = {}) => {
     assert.ok(['database/query', 'secrets', 'edge-logs'].includes(path));
     const endpoint = path === 'edge-logs' ? 'analytics/endpoints/logs.all' : path;
-    const response = await request(`https://api.supabase.com/v1/projects/${project}/${endpoint}`, {
-      method: options.method || 'GET',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
-      redirect: 'error',
-      signal: AbortSignal.timeout(30_000),
-    });
+    const query =
+      path === 'edge-logs'
+        ? `?${new URLSearchParams({
+            sql: options.body.sql,
+            iso_timestamp_start: options.body.iso_timestamp_start,
+            iso_timestamp_end: options.body.iso_timestamp_end,
+          })}`
+        : '';
+    const response = await request(
+      `https://api.supabase.com/v1/projects/${project}/${endpoint}${query}`,
+      {
+        method: path === 'edge-logs' ? 'GET' : options.method || 'GET',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        ...(options.body && path !== 'edge-logs' ? { body: JSON.stringify(options.body) } : {}),
+        redirect: 'error',
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
     if (!response.ok)
       throw new Error(`Diagnóstico rechazado (HTTP ${response.status}); respuesta omitida`);
     return response.status === 204 ? null : response.json();
