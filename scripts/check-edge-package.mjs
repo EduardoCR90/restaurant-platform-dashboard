@@ -85,6 +85,7 @@ const expected = {
     'supabase/functions/_shared/http.ts',
     'supabase/functions/_shared/github-jwks.ts',
     'supabase/functions/_shared/github-management.ts',
+    'supabase/functions/_shared/astro-provisioning-diagnostics.ts',
     'supabase/functions/_shared/astro-provisioning-request.ts',
     'supabase/functions/_shared/astro-provisioning-service.ts',
     'shared/astro-provisioning.ts',

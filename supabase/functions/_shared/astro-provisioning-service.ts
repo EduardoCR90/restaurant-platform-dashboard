@@ -35,6 +35,18 @@ export class AstroProvisioningDatabaseError extends Error {
   }
 }
 
+export type AstroRepositoryValidationSource = 'existing' | 'generated' | 'ambiguous_write_recovery';
+
+export type AstroRepositoryValidationIssue =
+  'repository_name' | 'repository_owner' | 'default_branch' | 'visibility' | 'template_provenance';
+
+export type AstroRepositoryValidationObservation = Readonly<{
+  source: AstroRepositoryValidationSource;
+  outcome: 'accepted' | 'rejected';
+  issues: readonly AstroRepositoryValidationIssue[];
+  provenance: 'matched' | 'generation_response' | 'missing' | 'mismatched';
+}>;
+
 function validateTemplate(repository: GithubRepository, github: GithubManagement) {
   if (
     repository.id !== github.templateRepositoryId ||
@@ -49,18 +61,41 @@ function validateTarget(
   repository: GithubRepository,
   job: AstroProvisioningJob,
   github: GithubManagement,
+  source: AstroRepositoryValidationSource,
+  observe?: (observation: AstroRepositoryValidationObservation) => void,
 ) {
-  if (
-    repository.fullName.toLowerCase() !== job.repository.toLowerCase() ||
-    repository.owner.toLowerCase() !== github.owner.toLowerCase() ||
-    repository.defaultBranch !== 'main' ||
-    repository.private !== (github.visibility === 'private') ||
-    repository.templateRepositoryId !== github.templateRepositoryId
-  )
-    throw new GithubManagementError('repository_conflict', false, true);
+  const issues: AstroRepositoryValidationIssue[] = [];
+  if (repository.fullName.toLowerCase() !== job.repository.toLowerCase())
+    issues.push('repository_name');
+  if (repository.owner.toLowerCase() !== github.owner.toLowerCase())
+    issues.push('repository_owner');
+  if (repository.defaultBranch !== 'main') issues.push('default_branch');
+  if (repository.private !== (github.visibility === 'private')) issues.push('visibility');
+
+  const exactProvenance = repository.templateRepositoryId === github.templateRepositoryId;
+  const generationProvenance = source === 'generated' && repository.templateRepositoryId === null;
+  if (!exactProvenance && !generationProvenance) issues.push('template_provenance');
+  const provenance = exactProvenance
+    ? 'matched'
+    : generationProvenance
+      ? 'generation_response'
+      : repository.templateRepositoryId === null
+        ? 'missing'
+        : 'mismatched';
+  observe?.({
+    source,
+    outcome: issues.length === 0 ? 'accepted' : 'rejected',
+    issues: Object.freeze([...issues]),
+    provenance,
+  });
+  if (issues.length > 0) throw new GithubManagementError('repository_conflict', false, true);
 }
 
-async function ensureRepository(job: AstroProvisioningJob, github: GithubManagement) {
+async function ensureRepository(
+  job: AstroProvisioningJob,
+  github: GithubManagement,
+  observe?: (observation: AstroRepositoryValidationObservation) => void,
+) {
   const template = await github.getRepository(github.templateRepository);
   if (!template) throw new GithubManagementError('template_mismatch', false);
   validateTemplate(template, github);
@@ -69,6 +104,7 @@ async function ensureRepository(job: AstroProvisioningJob, github: GithubManagem
   )
     throw new GithubManagementError('template_mismatch', false);
 
+  let source: AstroRepositoryValidationSource = 'existing';
   let repository = await github.getRepository(job.repository);
   if (!repository) {
     try {
@@ -76,13 +112,15 @@ async function ensureRepository(job: AstroProvisioningJob, github: GithubManagem
         job.repository.split('/')[1],
         `Web Astro de ${job.name}, gestionada por Restaurant Platform`,
       );
+      source = 'generated';
     } catch (error) {
       if (!(error instanceof GithubManagementError) || !error.ambiguous) throw error;
       repository = await github.getRepository(job.repository);
       if (!repository) throw error;
+      source = 'ambiguous_write_recovery';
     }
   }
-  validateTarget(repository, job, github);
+  validateTarget(repository, job, github, source, observe);
   return repository;
 }
 
@@ -92,6 +130,7 @@ export async function runAstroProvisioning(
     github: GithubManagement;
     store: AstroProvisioningStore;
     endpoints: { publication: string; provisioning: string };
+    observeRepositoryValidation?: (observation: AstroRepositoryValidationObservation) => void;
   },
 ): Promise<AstroProvisioningJob> {
   if (!claim.execute) return claim.job;
@@ -102,7 +141,11 @@ export async function runAstroProvisioning(
     if (job.specification_hash && job.specification_hash !== specification.hash)
       throw new GithubManagementError('template_mismatch', false, true);
     if (job.stage === 'queued') {
-      const repository = await ensureRepository(job, dependencies.github);
+      const repository = await ensureRepository(
+        job,
+        dependencies.github,
+        dependencies.observeRepositoryValidation,
+      );
       job = await dependencies.store.checkpoint('repository_created', {
         repositoryId: repository.id,
         specificationHash: specification.hash,
