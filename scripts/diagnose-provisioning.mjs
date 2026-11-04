@@ -39,6 +39,63 @@ export class DiagnosticFailure extends Error {
   }
 }
 
+const callbackPhases = new Set([
+  'identity',
+  'state_lookup',
+  'source_verification',
+  'state_confirmation',
+  'pages_registration',
+]);
+const callbackCategories = new Set([
+  'identity',
+  'contract',
+  'credentials',
+  'permissions',
+  'connection',
+  'manifest',
+  'database',
+  'pages',
+  'provider_response',
+]);
+
+export function edgeLogQuery(failedAtUtc) {
+  const failedAt = new Date(failedAtUtc);
+  assert.ok(Number.isFinite(failedAt.getTime()));
+  return {
+    sql: `select timestamp,event_message from edge_logs where event_message like '%astro-provisioning.source-ready-failed%' order by timestamp desc limit 20`,
+    iso_timestamp_start: new Date(failedAt.getTime() - 5 * 60_000).toISOString(),
+    iso_timestamp_end: new Date(failedAt.getTime() + 5 * 60_000).toISOString(),
+  };
+}
+
+export function safeCallbackDiagnostic(input) {
+  const rows = Array.isArray(input?.result) ? input.result : [];
+  for (const row of rows) {
+    if (!row || typeof row.event_message !== 'string') continue;
+    const start = row.event_message.indexOf('{');
+    const end = row.event_message.lastIndexOf('}');
+    if (start < 0 || end <= start) continue;
+    try {
+      const value = JSON.parse(row.event_message.slice(start, end + 1));
+      if (
+        value?.event === 'astro-provisioning.source-ready-failed' &&
+        typeof value.request_id === 'string' &&
+        uuid.test(value.request_id) &&
+        callbackPhases.has(value.phase) &&
+        callbackCategories.has(value.category)
+      )
+        return {
+          request_id: value.request_id,
+          phase: value.phase,
+          category: value.category,
+        };
+    } catch {
+      // Provider formatting and unrelated log lines are intentionally ignored.
+    }
+  }
+  return null;
+}
+
 export async function diagnoseProvisioning(requestId, api, correlation) {
   assert.match(requestId, uuid);
   let secretEntries;
@@ -55,6 +112,16 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
     });
   } catch {
     throw new DiagnosticFailure('request_state');
+  }
+  let callbackDiagnostic = null;
+  if (correlation) {
+    try {
+      callbackDiagnostic = safeCallbackDiagnostic(
+        await api('edge-logs', { method: 'POST', body: edgeLogQuery(correlation.failedAtUtc) }),
+      );
+    } catch {
+      throw new DiagnosticFailure('edge_logs');
+    }
   }
   if (!Array.isArray(secretEntries)) throw new DiagnosticFailure('secret_names_shape');
   const names = new Set(
@@ -123,14 +190,23 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
         : child
           ? 'sanity_child_started'
           : 'state_requires_review';
-  return { configured, missing, aggregate, sanity_child: child, astro_child: astro, conclusion };
+  return {
+    configured,
+    missing,
+    aggregate,
+    sanity_child: child,
+    astro_child: astro,
+    astro_callback_diagnostic: callbackDiagnostic,
+    conclusion,
+  };
 }
 
 export function managementApi(token, request = fetch) {
   assert.ok(typeof token === 'string' && token.trim(), 'Falta credencial de gestión');
   return async (path, options = {}) => {
-    assert.ok(['database/query', 'secrets'].includes(path));
-    const response = await request(`https://api.supabase.com/v1/projects/${project}/${path}`, {
+    assert.ok(['database/query', 'secrets', 'edge-logs'].includes(path));
+    const endpoint = path === 'edge-logs' ? 'analytics/endpoints/logs.all' : path;
+    const response = await request(`https://api.supabase.com/v1/projects/${project}/${endpoint}`, {
       method: options.method || 'GET',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       ...(options.body ? { body: JSON.stringify(options.body) } : {}),

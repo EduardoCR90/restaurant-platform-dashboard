@@ -5,46 +5,61 @@ import {
   DiagnosticFailure,
   diagnoseProvisioning,
   diagnosticQuery,
+  edgeLogQuery,
   managementApi,
+  safeCallbackDiagnostic,
 } from './diagnose-provisioning.mjs';
 
 const requestId = '01a1a200-5d67-7c2a-8d50-cdd975f97171';
 
 test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no comenzó', async () => {
   const calls = [];
-  const result = await diagnoseProvisioning(requestId, async (path, options = {}) => {
-    calls.push({ path, options });
-    if (path === 'secrets')
+  const result = await diagnoseProvisioning(
+    requestId,
+    async (path, options = {}) => {
+      calls.push({ path, options });
+      if (path === 'secrets')
+        return [
+          { name: 'SANITY_PROVISIONER_TOKEN', value: 'private-token' },
+          { name: 'SANITY_PROVISIONING_ORGANIZATION_ID', digest: 'private-digest' },
+          { name: 'SANITY_EXPECTED_ADMIN_USER_ID' },
+        ];
+      if (path === 'edge-logs')
+        return {
+          result: [
+            {
+              event_message:
+                'prefix {"event":"astro-provisioning.source-ready-failed","component":"astro-provisioning","request_id":"7c0d6fd5-9534-4579-9062-96d3dc76eb08","phase":"pages_registration","category":"database"}',
+            },
+          ],
+        };
       return [
-        { name: 'SANITY_PROVISIONER_TOKEN', value: 'private-token' },
-        { name: 'SANITY_PROVISIONING_ORGANIZATION_ID', digest: 'private-digest' },
-        { name: 'SANITY_EXPECTED_ADMIN_USER_ID' },
+        {
+          request_id: requestId,
+          status: 'failed',
+          stage: 'sanity',
+          error_code: 'configuration',
+          retryable: true,
+          attempt_count: 1,
+          updated_at: '2026-11-03T15:21:36Z',
+          child_request_id: null,
+          astro_request_id: '7c0d6fd5-9534-4579-9062-96d3dc76eb08',
+          astro_status: 'running',
+          astro_stage: 'initialization_dispatched',
+          astro_error_code: null,
+          astro_retryable: false,
+          astro_attempt_count: 2,
+          repository: 'EduardoCR90/abretucorazon-restaurant',
+          repository_id: '1444959693',
+          specification_hash: 'e'.repeat(64),
+          source_commit: null,
+          manifest_hash: null,
+          astro_updated_at: '2026-11-04T11:46:17Z',
+        },
       ];
-    return [
-      {
-        request_id: requestId,
-        status: 'failed',
-        stage: 'sanity',
-        error_code: 'configuration',
-        retryable: true,
-        attempt_count: 1,
-        updated_at: '2026-11-03T15:21:36Z',
-        child_request_id: null,
-        astro_request_id: '7c0d6fd5-9534-4579-9062-96d3dc76eb08',
-        astro_status: 'running',
-        astro_stage: 'initialization_dispatched',
-        astro_error_code: null,
-        astro_retryable: false,
-        astro_attempt_count: 2,
-        repository: 'EduardoCR90/abretucorazon-restaurant',
-        repository_id: '1444959693',
-        specification_hash: 'e'.repeat(64),
-        source_commit: null,
-        manifest_hash: null,
-        astro_updated_at: '2026-11-04T11:46:17Z',
-      },
-    ];
-  });
+    },
+    { failedAtUtc: '2026-11-04T12:53:29Z' },
+  );
   assert.equal(result.conclusion, 'missing_required_secrets');
   assert.deepEqual(result.missing, [
     'APP_INTEGRATION_CREDENTIAL_ACTIVE_KEY',
@@ -64,6 +79,11 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
     source_commit: null,
     manifest_hash: null,
     updated_at: '2026-11-04T11:46:17Z',
+  });
+  assert.deepEqual(result.astro_callback_diagnostic, {
+    request_id: '7c0d6fd5-9534-4579-9062-96d3dc76eb08',
+    phase: 'pages_registration',
+    category: 'database',
   });
   assert.equal(calls[1].options.body.read_only, true);
   assert.doesNotMatch(JSON.stringify(result), /private-token|private-digest/);
@@ -131,7 +151,40 @@ test('cliente de gestión limita endpoints y nunca imprime respuestas', async ()
   await api('secrets');
   assert.match(calls[0].url, /wanrzgumoamryuybmopa\/secrets$/);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer management-private');
+  await api('edge-logs', { method: 'POST', body: edgeLogQuery('2026-11-04T12:53:29Z') });
+  assert.match(calls[1].url, /analytics\/endpoints\/logs\.all$/);
   await assert.rejects(() => api('unsupported'));
+});
+
+test('diagnóstico de callback solo acepta fases y categorías cerradas', () => {
+  const valid = safeCallbackDiagnostic({
+    result: [
+      {
+        event_message:
+          '{"event":"astro-provisioning.source-ready-failed","request_id":"7c0d6fd5-9534-4579-9062-96d3dc76eb08","phase":"state_confirmation","category":"database","private":"omitted"}',
+      },
+    ],
+  });
+  assert.deepEqual(valid, {
+    request_id: '7c0d6fd5-9534-4579-9062-96d3dc76eb08',
+    phase: 'state_confirmation',
+    category: 'database',
+  });
+  assert.equal(
+    safeCallbackDiagnostic({
+      result: [
+        {
+          event_message:
+            '{"event":"astro-provisioning.source-ready-failed","request_id":"7c0d6fd5-9534-4579-9062-96d3dc76eb08","phase":"private_phase","category":"database"}',
+        },
+      ],
+    }),
+    null,
+  );
+  const bounded = edgeLogQuery('2026-11-04T12:53:29Z');
+  assert.equal(bounded.iso_timestamp_start, '2026-11-04T12:48:29.000Z');
+  assert.equal(bounded.iso_timestamp_end, '2026-11-04T12:58:29.000Z');
+  assert.doesNotMatch(bounded.sql, /token|authorization|metadata/i);
 });
 
 test('workflow es manual, de solo lectura y no persiste diagnósticos', async () => {
