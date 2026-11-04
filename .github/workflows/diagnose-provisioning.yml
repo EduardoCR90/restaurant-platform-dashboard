@@ -1,6 +1,10 @@
 name: Diagnose provisioning (read-only)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/diagnose-provisioning.yml
   workflow_dispatch:
     inputs:
       request_id:
@@ -16,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: diagnose-provisioning-${{ inputs.request_id }}
+  group: diagnose-provisioning-${{ inputs.request_id || '594ef199-3f83-4d3d-9ffd-4fcc87f2c471' }}
   cancel-in-progress: false
 
 jobs:
@@ -36,6 +40,6 @@ jobs:
       - name: Inspect existing request and required secret names only
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PROVISIONING_REQUEST_ID: ${{ inputs.request_id }}
-          PROVISIONING_FAILED_AT_UTC: ${{ inputs.failed_at_utc }}
+          PROVISIONING_REQUEST_ID: ${{ inputs.request_id || '594ef199-3f83-4d3d-9ffd-4fcc87f2c471' }}
+          PROVISIONING_FAILED_AT_UTC: ${{ inputs.failed_at_utc || '2026-11-04T13:25:29Z' }}
         run: node scripts/diagnose-provisioning.mjs
