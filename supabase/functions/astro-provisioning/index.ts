@@ -161,7 +161,7 @@ Deno.serve(
           const claim = astroProvisioningClaim(confirmed.data);
           if (!claim.execute) return claim.job;
           phase = 'pages_registration';
-          return runAstroProvisioning(claim, {
+          return await runAstroProvisioning(claim, {
             github,
             store: provisioningStore(admin, row.data.created_by, job.request_id, claim.leaseToken!),
             endpoints: reportEndpoints,
