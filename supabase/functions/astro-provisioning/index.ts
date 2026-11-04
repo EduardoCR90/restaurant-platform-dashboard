@@ -20,6 +20,11 @@ import {
   type AstroProvisioningStore,
 } from '../_shared/astro-provisioning-service.ts';
 import { logAstroRepositoryValidation } from '../_shared/astro-provisioning-diagnostics.ts';
+import {
+  astroCallbackDiagnostic,
+  logAstroCallbackFailure,
+  type AstroCallbackPhase,
+} from '../_shared/astro-callback-diagnostics.ts';
 import { astroRequestHash } from '../_shared/astro-provisioning-request.ts';
 
 function databaseFailure(error: unknown): never {
@@ -102,57 +107,73 @@ Deno.serve(
       const reportEndpoints = endpoints(url);
 
       if (typeof raw === 'object' && raw && 'action' in raw && raw.action === 'source_ready') {
-        const github = githubManagement(githubProvisioningConfiguration(environment));
-        const input = astroProvisioningCallback.parse(raw);
-        const authorization = request.headers.get('Authorization');
-        if (!authorization?.startsWith('Bearer '))
-          throw new HttpError(401, 'Falta la identidad del workflow');
-        const claims = await verifyGithubIdentity(
-          authorization.slice(7),
-          await githubKeys(),
-          Date.now(),
-          {
-            audience: 'restaurant-platform-provisioning',
-            workflowPath: '.github/workflows/bootstrap-instance.yml',
-          },
-        );
-        const row = await admin
-          .from('astro_provisioning_jobs')
-          .select('created_by')
-          .eq('request_id', input.request_id)
-          .maybeSingle();
-        if (row.error || !row.data) throw new HttpError(403, 'Workflow no autorizado');
-        const current = await admin.rpc('admin_get_astro_provisioning', {
-          actor: row.data.created_by,
-          request: input.request_id,
-        });
-        if (current.error || !current.data) databaseFailure(current.error);
-        const job = astroProvisioningJob.parse(current.data);
-        if (
-          claims.repository.toLowerCase() !== job.repository.toLowerCase() ||
-          claims.repository_id !== job.repository_id
-        )
-          throw new HttpError(403, 'Workflow no autorizado para esta web');
-        const evidence = await verifyProvisionedSource(
-          job,
-          { sourceCommit: input.source_commit, manifestHash: input.manifest_hash },
-          github,
-        );
-        const confirmed = await admin.rpc('admin_confirm_astro_source', {
-          request: job.request_id,
-          repository_name: claims.repository,
-          repository_identity: claims.repository_id,
-          source: evidence.sourceCommit,
-          manifest: evidence.manifestHash,
-        });
-        if (confirmed.error || !confirmed.data) databaseFailure(confirmed.error);
-        const claim = astroProvisioningClaim(confirmed.data);
-        if (!claim.execute) return claim.job;
-        return runAstroProvisioning(claim, {
-          github,
-          store: provisioningStore(admin, row.data.created_by, job.request_id, claim.leaseToken!),
-          endpoints: reportEndpoints,
-        });
+        let phase: AstroCallbackPhase = 'identity';
+        let requestId: string | null = null;
+        try {
+          const github = githubManagement(githubProvisioningConfiguration(environment));
+          const input = astroProvisioningCallback.parse(raw);
+          requestId = input.request_id;
+          const authorization = request.headers.get('Authorization');
+          if (!authorization?.startsWith('Bearer '))
+            throw new HttpError(401, 'Falta la identidad del workflow');
+          const claims = await verifyGithubIdentity(
+            authorization.slice(7),
+            await githubKeys(),
+            Date.now(),
+            {
+              audience: 'restaurant-platform-provisioning',
+              workflowPath: '.github/workflows/bootstrap-instance.yml',
+            },
+          );
+          phase = 'state_lookup';
+          const row = await admin
+            .from('astro_provisioning_jobs')
+            .select('created_by')
+            .eq('request_id', input.request_id)
+            .maybeSingle();
+          if (row.error || !row.data) throw new HttpError(403, 'Workflow no autorizado');
+          const current = await admin.rpc('admin_get_astro_provisioning', {
+            actor: row.data.created_by,
+            request: input.request_id,
+          });
+          if (current.error || !current.data) databaseFailure(current.error);
+          const job = astroProvisioningJob.parse(current.data);
+          if (
+            claims.repository.toLowerCase() !== job.repository.toLowerCase() ||
+            claims.repository_id !== job.repository_id
+          )
+            throw new HttpError(403, 'Workflow no autorizado para esta web');
+          phase = 'source_verification';
+          const evidence = await verifyProvisionedSource(
+            job,
+            { sourceCommit: input.source_commit, manifestHash: input.manifest_hash },
+            github,
+          );
+          phase = 'state_confirmation';
+          const confirmed = await admin.rpc('admin_confirm_astro_source', {
+            request: job.request_id,
+            repository_name: claims.repository,
+            repository_identity: claims.repository_id,
+            source: evidence.sourceCommit,
+            manifest: evidence.manifestHash,
+          });
+          if (confirmed.error || !confirmed.data) databaseFailure(confirmed.error);
+          const claim = astroProvisioningClaim(confirmed.data);
+          if (!claim.execute) return claim.job;
+          phase = 'pages_registration';
+          return runAstroProvisioning(claim, {
+            github,
+            store: provisioningStore(admin, row.data.created_by, job.request_id, claim.leaseToken!),
+            endpoints: reportEndpoints,
+          });
+        } catch (error) {
+          const diagnostic = astroCallbackDiagnostic(phase, error);
+          logAstroCallbackFailure(requestId, diagnostic);
+          throw new HttpError(
+            diagnostic.status,
+            `Callback Astro rechazado (${diagnostic.phase}/${diagnostic.category})`,
+          );
+        }
       }
 
       const { client, user } = await authenticate(request);
