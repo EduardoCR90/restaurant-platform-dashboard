@@ -23,7 +23,12 @@ export function diagnosticQuery(requestId, correlation) {
     : '';
   return `select r.request_id,r.status,r.stage,r.error_code,r.retryable,r.attempt_count,r.sanity_request_id,r.updated_at,
  s.request_id as child_request_id,s.status as child_status,s.stage as child_stage,s.error_code as child_error_code,s.retryable as child_retryable,s.attempt_count as child_attempt_count,s.updated_at as child_updated_at,
- a.request_id as astro_request_id,a.status as astro_status,a.stage as astro_stage,a.error_code as astro_error_code,a.retryable as astro_retryable,a.attempt_count as astro_attempt_count,a.repository,a.repository_id,a.specification_hash,a.source_commit,a.manifest_hash,a.updated_at as astro_updated_at
+ a.request_id as astro_request_id,a.status as astro_status,a.stage as astro_stage,a.error_code as astro_error_code,a.retryable as astro_retryable,a.attempt_count as astro_attempt_count,a.repository,a.repository_id,a.specification_hash,a.source_commit,a.manifest_hash,a.deployment_id,a.lease_expires_at>now() as astro_has_active_lease,
+ (select count(*) from public.website_deployments d where d.restaurant_id=a.restaurant_id) as existing_deployment_count,
+ exists(select 1 from public.restaurant_websites w where w.restaurant_id=a.restaurant_id) as website_exists,
+ (select count(*) from public.restaurant_module_entitlements e where e.restaurant_id=a.restaurant_id) as entitlement_count,
+ (select count(*) from public.restaurant_modules m where m.restaurant_id=a.restaurant_id) as module_count,
+ a.updated_at as astro_updated_at
  from public.restaurant_provisioning_jobs r
  left join public.sanity_provisioning_jobs s on s.request_id=r.sanity_request_id
  left join public.astro_provisioning_jobs a on a.request_id=r.astro_request_id
@@ -114,13 +119,15 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
     throw new DiagnosticFailure('request_state');
   }
   let callbackDiagnostic = null;
+  let edgeLogsAvailable = correlation ? false : null;
   if (correlation) {
     try {
       callbackDiagnostic = safeCallbackDiagnostic(
         await api('edge-logs', { method: 'POST', body: edgeLogQuery(correlation.failedAtUtc) }),
       );
+      edgeLogsAvailable = true;
     } catch {
-      throw new DiagnosticFailure('edge_logs');
+      edgeLogsAvailable = false;
     }
   }
   if (!Array.isArray(secretEntries)) throw new DiagnosticFailure('secret_names_shape');
@@ -140,6 +147,9 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
       missing,
       aggregate: null,
       sanity_child: null,
+      astro_child: null,
+      astro_callback_diagnostic: callbackDiagnostic,
+      edge_logs_available: edgeLogsAvailable,
       conclusion: missing.length
         ? 'missing_required_secrets'
         : 'request_not_found_with_required_secret_names_present',
@@ -179,6 +189,12 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
         specification_hash: row.specification_hash,
         source_commit: row.source_commit,
         manifest_hash: row.manifest_hash,
+        deployment_id: row.deployment_id,
+        has_active_lease: row.astro_has_active_lease,
+        existing_deployment_count: Number(row.existing_deployment_count),
+        website_exists: row.website_exists,
+        entitlement_count: Number(row.entitlement_count),
+        module_count: Number(row.module_count),
         updated_at: row.astro_updated_at,
       }
     : null;
@@ -197,6 +213,7 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
     sanity_child: child,
     astro_child: astro,
     astro_callback_diagnostic: callbackDiagnostic,
+    edge_logs_available: edgeLogsAvailable,
     conclusion,
   };
 }

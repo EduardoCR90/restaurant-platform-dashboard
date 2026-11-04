@@ -54,6 +54,12 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
           specification_hash: 'e'.repeat(64),
           source_commit: null,
           manifest_hash: null,
+          deployment_id: null,
+          astro_has_active_lease: false,
+          existing_deployment_count: '0',
+          website_exists: false,
+          entitlement_count: '0',
+          module_count: '0',
           astro_updated_at: '2026-11-04T11:46:17Z',
         },
       ];
@@ -78,6 +84,12 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
     specification_hash: 'e'.repeat(64),
     source_commit: null,
     manifest_hash: null,
+    deployment_id: null,
+    has_active_lease: false,
+    existing_deployment_count: 0,
+    website_exists: false,
+    entitlement_count: 0,
+    module_count: 0,
     updated_at: '2026-11-04T11:46:17Z',
   });
   assert.deepEqual(result.astro_callback_diagnostic, {
@@ -85,6 +97,7 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
     phase: 'pages_registration',
     category: 'database',
   });
+  assert.equal(result.edge_logs_available, true);
   assert.equal(calls[1].options.body.read_only, true);
   assert.doesNotMatch(JSON.stringify(result), /private-token|private-digest/);
 });
@@ -140,6 +153,20 @@ test('fallos de lectura solo revelan la fase segura', async () => {
       error.phase === 'secret_names' &&
       !error.message.includes('private provider response'),
   );
+});
+
+test('logs no disponibles no bloquean el diagnóstico SQL seguro', async () => {
+  const result = await diagnoseProvisioning(
+    requestId,
+    async (path) => {
+      if (path === 'secrets') return [];
+      if (path === 'edge-logs') throw new Error('private analytics response');
+      return [];
+    },
+    { failedAtUtc: '2026-11-04T12:53:29Z' },
+  );
+  assert.equal(result.edge_logs_available, false);
+  assert.equal(result.aggregate, null);
 });
 
 test('cliente de gestión limita endpoints y nunca imprime respuestas', async () => {
