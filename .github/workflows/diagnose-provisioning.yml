@@ -53,12 +53,36 @@ jobs:
             managementApi,
           } from './scripts/diagnose-provisioning.mjs';
           try {
+            const api = managementApi(process.env.SUPABASE_ACCESS_TOKEN);
             const result = await diagnoseProvisioning(
               process.env.PROVISIONING_REQUEST_ID,
-              managementApi(process.env.SUPABASE_ACCESS_TOKEN),
+              api,
               {failedAtUtc: process.env.PROVISIONING_FAILED_AT_UTC},
             );
             console.log(JSON.stringify(result));
+            const rows = await api('database/query', {
+              method: 'POST',
+              body: {
+                read_only: true,
+                query: `select
+                  exists(select 1 from app_private.platform_administrators p join public.profiles u on u.id=p.user_id where p.user_id=a.created_by and u.status='active') as actor_active,
+                  exists(select 1 from public.sanity_provisioning_jobs s join public.restaurant_integrations i on i.id=s.integration_id and i.restaurant_id=s.restaurant_id and i.external_project_id=s.project_id and i.external_dataset=s.dataset where s.request_id=a.sanity_request_id and s.status='succeeded' and s.restaurant_id=a.restaurant_id and s.integration_id=a.integration_id) as sanity_evidence_valid,
+                  exists(select 1 from public.restaurant_integrations i where i.id=a.integration_id and i.restaurant_id=a.restaurant_id) as integration_valid,
+                  exists(select 1 from public.template_releases t where t.template_key=a.template_key and t.version=a.template_version) as template_release_valid,
+                  not exists(select 1 from public.website_deployments d where d.integration_id=a.integration_id or d.repository=a.repository or d.repository_id=a.repository_id) as deployment_identity_available,
+                  not exists(select 1 from public.restaurant_websites w where w.restaurant_id=a.restaurant_id) as website_slot_available,
+                  not exists(select 1 from public.restaurant_module_entitlements e where e.restaurant_id=a.restaurant_id) as entitlement_slots_available,
+                  not exists(select 1 from public.restaurant_modules m where m.restaurant_id=a.restaurant_id) as module_slots_available,
+                  jsonb_typeof(a.modules)='array' and jsonb_array_length(a.modules)<=6 as modules_shape_valid,
+                  not exists(select 1 from jsonb_array_elements(a.modules) m where m->>'key' not in ('content_management','reservations','staff_scheduling','qr_menu','events','analytics') or jsonb_typeof(m->'granted')<>'boolean' or jsonb_typeof(m->'enabled')<>'boolean') as module_values_valid,
+                  a.custom_domain is null or a.custom_domain ~ '^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}$' as domain_valid,
+                  a.repository ~ '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' and a.repository_id ~ '^[1-9][0-9]+$' and a.site_url ~ '^https://' as deployment_values_valid
+                from public.restaurant_provisioning_jobs r
+                join public.astro_provisioning_jobs a on a.request_id=r.astro_request_id
+                where r.request_id='${process.env.PROVISIONING_REQUEST_ID}'::uuid`,
+              },
+            });
+            console.log(JSON.stringify({completion_preflight: rows[0] || null}));
           } catch (error) {
             console.error(
               error instanceof DiagnosticFailure
