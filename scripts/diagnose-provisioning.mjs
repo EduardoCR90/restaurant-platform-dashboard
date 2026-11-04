@@ -22,9 +22,11 @@ export function diagnosticQuery(requestId, correlation) {
       })()
     : '';
   return `select r.request_id,r.status,r.stage,r.error_code,r.retryable,r.attempt_count,r.sanity_request_id,r.updated_at,
- s.request_id as child_request_id,s.status as child_status,s.stage as child_stage,s.error_code as child_error_code,s.retryable as child_retryable,s.attempt_count as child_attempt_count,s.updated_at as child_updated_at
+ s.request_id as child_request_id,s.status as child_status,s.stage as child_stage,s.error_code as child_error_code,s.retryable as child_retryable,s.attempt_count as child_attempt_count,s.updated_at as child_updated_at,
+ a.request_id as astro_request_id,a.status as astro_status,a.stage as astro_stage,a.error_code as astro_error_code,a.retryable as astro_retryable,a.attempt_count as astro_attempt_count,a.repository,a.repository_id,a.specification_hash,a.source_commit,a.manifest_hash,a.updated_at as astro_updated_at
  from public.restaurant_provisioning_jobs r
  left join public.sanity_provisioning_jobs s on s.request_id=r.sanity_request_id
+ left join public.astro_provisioning_jobs a on a.request_id=r.astro_request_id
  where r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid${fallback}
  order by case when r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid then 0 else 1 end,abs(extract(epoch from r.updated_at-'${correlation ? new Date(correlation.failedAtUtc).toISOString() : '1970-01-01T00:00:00.000Z'}'::timestamptz))
  limit 1`;
@@ -97,6 +99,22 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
         updated_at: row.child_updated_at,
       }
     : null;
+  const astro = row.astro_request_id
+    ? {
+        request_id: row.astro_request_id,
+        status: row.astro_status,
+        stage: row.astro_stage,
+        error_code: row.astro_error_code,
+        retryable: row.astro_retryable,
+        attempt_count: row.astro_attempt_count,
+        repository: row.repository,
+        repository_id: row.repository_id,
+        specification_hash: row.specification_hash,
+        source_commit: row.source_commit,
+        manifest_hash: row.manifest_hash,
+        updated_at: row.astro_updated_at,
+      }
+    : null;
   const conclusion =
     aggregate.error_code === 'configuration' && missing.length
       ? 'missing_required_secrets'
@@ -105,7 +123,7 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
         : child
           ? 'sanity_child_started'
           : 'state_requires_review';
-  return { configured, missing, aggregate, sanity_child: child, conclusion };
+  return { configured, missing, aggregate, sanity_child: child, astro_child: astro, conclusion };
 }
 
 export function managementApi(token, request = fetch) {

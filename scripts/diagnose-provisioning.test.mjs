@@ -30,6 +30,18 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
         attempt_count: 1,
         updated_at: '2026-11-03T15:21:36Z',
         child_request_id: null,
+        astro_request_id: '7c0d6fd5-9534-4579-9062-96d3dc76eb08',
+        astro_status: 'running',
+        astro_stage: 'initialization_dispatched',
+        astro_error_code: null,
+        astro_retryable: false,
+        astro_attempt_count: 2,
+        repository: 'EduardoCR90/abretucorazon-restaurant',
+        repository_id: '1444959693',
+        specification_hash: 'e'.repeat(64),
+        source_commit: null,
+        manifest_hash: null,
+        astro_updated_at: '2026-11-04T11:46:17Z',
       },
     ];
   });
@@ -39,6 +51,20 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
     'APP_INTEGRATION_CREDENTIAL_KEYS',
   ]);
   assert.equal(result.sanity_child, null);
+  assert.deepEqual(result.astro_child, {
+    request_id: '7c0d6fd5-9534-4579-9062-96d3dc76eb08',
+    status: 'running',
+    stage: 'initialization_dispatched',
+    error_code: null,
+    retryable: false,
+    attempt_count: 2,
+    repository: 'EduardoCR90/abretucorazon-restaurant',
+    repository_id: '1444959693',
+    specification_hash: 'e'.repeat(64),
+    source_commit: null,
+    manifest_hash: null,
+    updated_at: '2026-11-04T11:46:17Z',
+  });
   assert.equal(calls[1].options.body.read_only, true);
   assert.doesNotMatch(JSON.stringify(result), /private-token|private-digest/);
 });
@@ -46,6 +72,7 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
 test('consulta acepta solo UUID y selecciona únicamente estado seguro', () => {
   assert.match(diagnosticQuery(requestId), /where r\.request_id=/);
   assert.match(diagnosticQuery(requestId), /or r\.sanity_request_id=/);
+  assert.match(diagnosticQuery(requestId), /left join public\.astro_provisioning_jobs/);
   assert.throws(() => diagnosticQuery("' or true--"));
   const correlated = diagnosticQuery(requestId, {
     failedAtUtc: '2026-11-03T15:21:36Z',
