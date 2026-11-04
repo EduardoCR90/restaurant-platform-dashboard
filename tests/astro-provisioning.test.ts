@@ -189,6 +189,175 @@ describe('Astro instance provisioning', () => {
     expect(database.failures).toEqual([]);
   });
 
+  it('accepts missing template metadata only in the successful generation response', async () => {
+    const observeRepositoryValidation = vi.fn();
+    const github = provider({
+      generateRepository: vi.fn(async () => ({
+        id: '200',
+        fullName: job.repository,
+        private: true,
+        defaultBranch: 'main',
+        owner: 'owner',
+        isTemplate: false,
+        templateRepositoryId: null,
+      })),
+    });
+    const database = store();
+    const result = await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+      observeRepositoryValidation,
+    });
+    expect(result.stage).toBe('initialization_dispatched');
+    expect(observeRepositoryValidation).toHaveBeenCalledWith({
+      source: 'generated',
+      outcome: 'accepted',
+      issues: [],
+      provenance: 'generation_response',
+    });
+  });
+
+  it('recovers an existing generated repository only with exact template provenance', async () => {
+    const target = {
+      id: '200',
+      fullName: job.repository,
+      private: true,
+      defaultBranch: 'main',
+      owner: 'owner',
+      isTemplate: false,
+      templateRepositoryId: '100',
+    };
+    const github = provider({
+      getRepository: vi.fn(async (name) =>
+        name === 'owner/template'
+          ? {
+              id: '100',
+              fullName: 'owner/template',
+              private: true,
+              defaultBranch: 'main',
+              owner: 'owner',
+              isTemplate: true,
+              templateRepositoryId: null,
+            }
+          : target,
+      ),
+    });
+    const database = store();
+    const observeRepositoryValidation = vi.fn();
+    const result = await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+      observeRepositoryValidation,
+    });
+    expect(result).toMatchObject({ stage: 'initialization_dispatched', repository_id: '200' });
+    expect(github.generateRepository).not.toHaveBeenCalled();
+    expect(observeRepositoryValidation).toHaveBeenCalledWith({
+      source: 'existing',
+      outcome: 'accepted',
+      issues: [],
+      provenance: 'matched',
+    });
+  });
+
+  it('recovers an ambiguous create response only after GitHub proves template provenance', async () => {
+    const target = {
+      id: '200',
+      fullName: job.repository,
+      private: true,
+      defaultBranch: 'main',
+      owner: 'owner',
+      isTemplate: false,
+      templateRepositoryId: '100',
+    };
+    let targetReads = 0;
+    const github = provider({
+      getRepository: vi.fn(async (name) => {
+        if (name === 'owner/template')
+          return {
+            id: '100',
+            fullName: 'owner/template',
+            private: true,
+            defaultBranch: 'main',
+            owner: 'owner',
+            isTemplate: true,
+            templateRepositoryId: null,
+          };
+        targetReads += 1;
+        return targetReads === 1 ? null : target;
+      }),
+      generateRepository: vi.fn(async () => {
+        throw new GithubManagementError('connection', true, true);
+      }),
+    });
+    const database = store();
+    const observeRepositoryValidation = vi.fn();
+    const result = await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+      observeRepositoryValidation,
+    });
+    expect(result.stage).toBe('initialization_dispatched');
+    expect(github.generateRepository).toHaveBeenCalledOnce();
+    expect(observeRepositoryValidation).toHaveBeenCalledWith({
+      source: 'ambiguous_write_recovery',
+      outcome: 'accepted',
+      issues: [],
+      provenance: 'matched',
+    });
+  });
+
+  it('does not adopt an ambiguous create result without template evidence', async () => {
+    let targetReads = 0;
+    const github = provider({
+      getRepository: vi.fn(async (name) => {
+        if (name === 'owner/template')
+          return {
+            id: '100',
+            fullName: 'owner/template',
+            private: true,
+            defaultBranch: 'main',
+            owner: 'owner',
+            isTemplate: true,
+            templateRepositoryId: null,
+          };
+        targetReads += 1;
+        return targetReads === 1
+          ? null
+          : {
+              id: '200',
+              fullName: job.repository,
+              private: true,
+              defaultBranch: 'main',
+              owner: 'owner',
+              isTemplate: false,
+              templateRepositoryId: null,
+            };
+      }),
+      generateRepository: vi.fn(async () => {
+        throw new GithubManagementError('connection', true, true);
+      }),
+    });
+    const database = store();
+    const observeRepositoryValidation = vi.fn();
+    const result = await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+      observeRepositoryValidation,
+    });
+    expect(result).toMatchObject({ status: 'manual_review', error_code: 'repository_conflict' });
+    expect(observeRepositoryValidation).toHaveBeenCalledWith({
+      source: 'ambiguous_write_recovery',
+      outcome: 'rejected',
+      issues: ['template_provenance'],
+      provenance: 'missing',
+    });
+    expect(github.dispatch).not.toHaveBeenCalled();
+  });
+
   it('resumes Pages only after the OIDC-confirmed source stage', async () => {
     const database = store();
     const ready: AstroProvisioningJob = {
@@ -236,9 +405,67 @@ describe('Astro instance provisioning', () => {
             },
       ),
     });
-    const result = await runAstroProvisioning(claim(), { github, store: database.api, endpoints });
+    const observeRepositoryValidation = vi.fn();
+    const result = await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+      observeRepositoryValidation,
+    });
     expect(result).toMatchObject({ status: 'manual_review', error_code: 'repository_conflict' });
     expect(github.generateRepository).not.toHaveBeenCalled();
+    expect(observeRepositoryValidation).toHaveBeenCalledWith({
+      source: 'existing',
+      outcome: 'rejected',
+      issues: ['template_provenance'],
+      provenance: 'missing',
+    });
+  });
+
+  it.each([
+    ['name', { fullName: 'owner/other-repository' }, ['repository_name']],
+    ['default branch', { defaultBranch: 'develop' }, ['default_branch']],
+    ['visibility', { private: false }, ['visibility']],
+    ['owner', { owner: 'attacker' }, ['repository_owner']],
+    ['template', { templateRepositoryId: '999' }, ['template_provenance']],
+  ])('diagnoses a repository conflict caused by %s', async (_label, override, issues) => {
+    const target = {
+      id: '200',
+      fullName: job.repository,
+      private: true,
+      defaultBranch: 'main',
+      owner: 'owner',
+      isTemplate: false,
+      templateRepositoryId: '100',
+      ...override,
+    };
+    const github = provider({
+      getRepository: vi.fn(async (name) =>
+        name === 'owner/template'
+          ? {
+              id: '100',
+              fullName: 'owner/template',
+              private: true,
+              defaultBranch: 'main',
+              owner: 'owner',
+              isTemplate: true,
+              templateRepositoryId: null,
+            }
+          : target,
+      ),
+    });
+    const database = store();
+    const observeRepositoryValidation = vi.fn();
+    await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+      observeRepositoryValidation,
+    });
+    expect(observeRepositoryValidation).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'rejected', issues }),
+    );
+    expect(github.dispatch).not.toHaveBeenCalled();
   });
 
   it('verifies the manifest at the reported commit before Pages registration', async () => {
@@ -313,6 +540,66 @@ describe('Astro instance provisioning', () => {
       vi.fn(async () => Response.json({ message: 'Not Found' }, { status: 404 })) as typeof fetch,
     );
     await expect(missing.getRepository('owner/not-created')).resolves.toBeNull();
+  });
+
+  it('rejects an incomplete GitHub repository response without adopting it', async () => {
+    const configuration = githubProvisioningConfiguration(
+      (name) =>
+        ({
+          GITHUB_PROVISIONER_TOKEN: 'github-backend-secret-value',
+          GITHUB_REPOSITORY_OWNER: 'owner',
+          GITHUB_TEMPLATE_REPOSITORY: 'owner/template',
+          GITHUB_TEMPLATE_REPOSITORY_ID: '100',
+        })[name],
+    );
+    const client = githubManagement(
+      configuration,
+      vi.fn(async () =>
+        Response.json({
+          id: 200,
+          full_name: job.repository,
+          private: true,
+          owner: { login: 'owner' },
+          // GitHub has not exposed a default branch yet.
+        }),
+      ) as typeof fetch,
+    );
+    await expect(client.getRepository(job.repository)).rejects.toMatchObject({
+      code: 'provider_response',
+      retryable: false,
+      ambiguous: true,
+    });
+  });
+
+  it('checkpoints a generated repository before a partial initialization failure', async () => {
+    const database = store();
+    const github = provider({
+      generateRepository: vi.fn(async () => ({
+        id: '200',
+        fullName: job.repository,
+        private: true,
+        defaultBranch: 'main',
+        owner: 'owner',
+        isTemplate: false,
+        templateRepositoryId: null,
+      })),
+      dispatch: vi.fn(async () => {
+        throw new GithubManagementError('dispatch', true);
+      }),
+    });
+    const result = await runAstroProvisioning(claim(), {
+      github,
+      store: database.api,
+      endpoints,
+    });
+    expect(result).toMatchObject({
+      repository_id: '200',
+      stage: 'repository_created',
+      status: 'failed',
+      retryable: true,
+      error_code: 'dispatch',
+    });
+    expect(database.api.checkpoint).toHaveBeenCalledOnce();
   });
 
   it('does not auto-retry a dispatch failure', async () => {

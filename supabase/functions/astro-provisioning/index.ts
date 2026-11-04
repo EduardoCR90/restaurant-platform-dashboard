@@ -19,6 +19,7 @@ import {
   verifyProvisionedSource,
   type AstroProvisioningStore,
 } from '../_shared/astro-provisioning-service.ts';
+import { logAstroRepositoryValidation } from '../_shared/astro-provisioning-diagnostics.ts';
 import { astroRequestHash } from '../_shared/astro-provisioning-request.ts';
 
 function databaseFailure(error: unknown): never {
@@ -211,6 +212,13 @@ Deno.serve(
         github,
         store: provisioningStore(admin, user.id, claim.job.request_id, claim.leaseToken!),
         endpoints: reportEndpoints,
+        observeRepositoryValidation: (observation) =>
+          logAstroRepositoryValidation({
+            event: 'astro-provisioning.repository-validation',
+            component: 'astro-provisioning',
+            request_id: claim.job.request_id,
+            ...observation,
+          }),
       });
     },
     { serverToServer: true },

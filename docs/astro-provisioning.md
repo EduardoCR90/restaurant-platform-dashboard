@@ -22,6 +22,12 @@ El restaurante permanece `pending` al terminar esta función; el aprovisionador 
 
 Antes de generar se consulta el nombre determinista. Un repositorio preexistente solo se reutiliza si GitHub confirma owner, visibilidad, rama y `template_repository.id` exactos. Una respuesta ambigua o un manifest distinto pasa a `manual_review`; nunca se elimina, reinicializa o sobrescribe un repositorio. Repetir el bootstrap exige el mismo request y specification hash. Pages se habilita después de verificar el código publicado.
 
+La única evidencia alternativa aceptada para la procedencia es una respuesta `201` recibida directamente del endpoint autenticado de generación de la plantilla. Esa respuesta demuestra qué template se solicitó aunque GitHub todavía no haya materializado `template_repository` en el objeto devuelto. Si el repositorio ya existía o se recupera después de una escritura ambigua, la relación exacta con el ID de la plantilla sigue siendo obligatoria. Un ID distinto siempre se rechaza.
+
+El defecto anterior validaba inmediatamente el objeto de la respuesta de generación como si fuera una lectura estable y exigía su campo opcional `template_repository.id`. GitHub ya había creado el repositorio, pero una respuesta todavía incompleta terminaba en `repository_conflict` antes de guardar el checkpoint. La corrección distingue la evidencia directa de creación de la adopción posterior; no relaja ninguna comprobación para repositorios preexistentes.
+
+La validación registra únicamente categorías cerradas (`repository_name`, `repository_owner`, `default_branch`, `visibility`, `template_provenance`), origen de la evidencia y resultado. No registra nombres, IDs, respuestas del proveedor ni credenciales. Las respuestas estructuralmente incompletas se tratan como ambiguas y no se adoptan. El caso controlado de Abre Tu Corazón está documentado en [`ops/abre-tu-corazon-recovery`](../ops/abre-tu-corazon-recovery/README.md); su SQL no se ejecuta en CI ni reintenta el aprovisionamiento.
+
 La limitación de GitHub para `generate repository from template` es que usa el default branch. Por ello una instancia nueva solo se crea si `main` del template coincide exactamente con el release aprobado. Las actualizaciones posteriores conservan el actualizador de fase 5: integridad por archivo, compatibilidad SemVer, build aislada, PR/CI y confirmación OIDC. La configuración, contenido y assets de la instancia quedan fuera de los archivos generados por el package compartido.
 
 ## Permisos y secretos

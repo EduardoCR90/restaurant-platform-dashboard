@@ -111,7 +111,9 @@ function mappedStatus(status: number, operation: 'read' | 'write') {
 }
 
 function asRepository(input: unknown): GithubRepository {
-  const value = repositorySchema.parse(input);
+  const parsed = repositorySchema.safeParse(input);
+  if (!parsed.success) throw new GithubManagementError('provider_response', false, true);
+  const value = parsed.data;
   return {
     id: String(value.id),
     fullName: value.full_name,
