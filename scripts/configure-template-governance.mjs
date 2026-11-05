@@ -65,6 +65,16 @@ export async function configureTemplateGovernance(operation, api) {
     hybridValues.every((v) => v === true) || hybridValues.every((v) => v === false),
     'Partial hybrid Sanity schema; stop for review',
   );
+  const astroSanityContract = await api('database/query', {
+    method: 'POST',
+    body: {
+      query:
+        "select coalesce(regexp_replace(pg_get_functiondef(to_regprocedure('public.admin_complete_astro_provisioning(uuid,uuid,uuid,text)')),E'\\\\s+','','g') like '%i.external_project_id=coalesce(s.external_project_id,s.project_id)%',false) as external_project_contract",
+      read_only: true,
+    },
+  });
+  assert.equal(typeof astroSanityContract[0]?.external_project_contract, 'boolean');
+  const astroSanityContractReady = astroSanityContract[0].external_project_contract;
   if (operation === 'inspect')
     return {
       status: 'inspected-read-only',
@@ -73,6 +83,7 @@ export async function configureTemplateGovernance(operation, api) {
       astroProvisioningReady: astroValues.every(Boolean),
       completeProvisioningReady: completeValues.every(Boolean),
       hybridSanityReady: hybridValues.every(Boolean),
+      astroSanityContractReady,
     };
   const catalog = JSON.parse(
     await readFile(new URL('../ops/template-releases.json', import.meta.url), 'utf8'),
@@ -140,6 +151,20 @@ export async function configureTemplateGovernance(operation, api) {
       body: {
         query: await readFile(
           new URL('../supabase/migrations/202611030001_hybrid_sanity_admin.sql', import.meta.url),
+          'utf8',
+        ),
+      },
+    });
+
+  if (!astroSanityContractReady)
+    await api('database/query', {
+      method: 'POST',
+      body: {
+        query: await readFile(
+          new URL(
+            '../supabase/migrations/202611050001_astro_hybrid_sanity_evidence.sql',
+            import.meta.url,
+          ),
           'utf8',
         ),
       },

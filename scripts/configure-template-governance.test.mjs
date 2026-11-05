@@ -38,6 +38,7 @@ const hybridReady = {
   wait_rpc: true,
   resume_rpc: true,
 };
+const astroSanityContractReady = { external_project_contract: true };
 const protections = {
   modules_protected: true,
   admin_protected: true,
@@ -58,14 +59,17 @@ test('inspect is read-only and refuses a partial schema', async () => {
           ? [astroReady]
           : calls.length === 4
             ? [completeReady]
-            : [hybridReady];
+            : calls.length === 5
+              ? [hybridReady]
+              : [astroSanityContractReady];
   });
   assert.equal(result.schemaReady, true);
   assert.equal(result.provisioningReady, true);
   assert.equal(result.astroProvisioningReady, true);
   assert.equal(result.completeProvisioningReady, true);
   assert.equal(result.hybridSanityReady, true);
-  assert.equal(calls.length, 5);
+  assert.equal(result.astroSanityContractReady, true);
+  assert.equal(calls.length, 6);
   assert.equal(calls[0].options.body.read_only, true);
   await assert.rejects(
     configureTemplateGovernance('apply', async () => [{ ...ready, builds: false }]),
@@ -81,6 +85,7 @@ test('apply checks immutable release identity and module/RPC privilege protectio
     if (queries.length === 3) return [astroReady];
     if (queries.length === 4) return [completeReady];
     if (queries.length === 5) return [hybridReady];
+    if (queries.length === 6) return [astroSanityContractReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -104,6 +109,7 @@ test('apply installs the reviewed provisioning migration only when the whole sch
     if (queries.length === 3) return [astroReady];
     if (queries.length === 4) return [completeReady];
     if (queries.length === 5) return [hybridReady];
+    if (queries.length === 6) return [astroSanityContractReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -122,6 +128,7 @@ test('apply installs the reviewed Astro provisioning migration only when fully a
       return [Object.fromEntries(Object.keys(astroReady).map((key) => [key, false]))];
     if (queries.length === 4) return [completeReady];
     if (queries.length === 5) return [hybridReady];
+    if (queries.length === 6) return [astroSanityContractReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -140,6 +147,7 @@ test('apply installs the complete provisioning migration only when fully absent'
     if (queries.length === 4)
       return [Object.fromEntries(Object.keys(completeReady).map((key) => [key, false]))];
     if (queries.length === 5) return [hybridReady];
+    if (queries.length === 6) return [astroSanityContractReady];
     if (options.body.read_only) return [protections];
     return [];
   });
@@ -158,10 +166,35 @@ test('apply installs hybrid Sanity pause only when the reviewed schema is fully 
     if (queries.length === 4) return [completeReady];
     if (queries.length === 5)
       return [Object.fromEntries(Object.keys(hybridReady).map((key) => [key, false]))];
+    if (queries.length === 6) return [astroSanityContractReady];
     if (options.body.read_only) return [protections];
     return [];
   });
   assert.ok(queries.some((query) => query.query.includes('admin_pause_sanity_admin')));
   assert.ok(queries.some((query) => query.query.includes('external_project_id')));
   assert.ok(!queries.some((query) => /truncate|drop table/i.test(query.query)));
+});
+
+test('apply upgrades Astro completion to the external Sanity project contract once', async () => {
+  const queries = [];
+  await configureTemplateGovernance('apply', async (_path, options) => {
+    queries.push(options.body);
+    if (queries.length === 1) return [ready];
+    if (queries.length === 2) return [provisioningReady];
+    if (queries.length === 3) return [astroReady];
+    if (queries.length === 4) return [completeReady];
+    if (queries.length === 5) return [hybridReady];
+    if (queries.length === 6) return [{ external_project_contract: false }];
+    if (options.body.read_only) return [protections];
+    return [];
+  });
+  const migration = queries.find((query) =>
+    query.query.includes('create or replace function public.admin_complete_astro_provisioning'),
+  );
+  assert.ok(migration);
+  assert.match(
+    migration.query,
+    /create or replace function public\.admin_complete_astro_provisioning/,
+  );
+  assert.doesNotMatch(migration.query, /delete|truncate|drop table/i);
 });
