@@ -33,6 +33,9 @@ beforeAll(async () => {
     '202611010001_template_governance.sql',
     '202611010002_sanity_provisioning.sql',
     '202611010003_astro_provisioning.sql',
+    '202611020001_restaurant_provisioning.sql',
+    '202611030001_hybrid_sanity_admin.sql',
+    '202611050001_astro_hybrid_sanity_evidence.sql',
   ])
     await db.exec(await readFile(`supabase/migrations/${migration}`, 'utf8'));
   await db.exec(`insert into auth.users values('${admin}'),('${owner}'),('${suspendedAdmin}');
@@ -43,9 +46,9 @@ beforeAll(async () => {
     [release],
   );
   await db.exec(`insert into public.restaurants(id,name,slug,status) values('${restaurant}','Nuevo Restaurante','nuevo-restaurante','pending');
-    insert into public.restaurant_integrations(id,restaurant_id,provider,external_project_id,external_dataset) values('${integration}','${restaurant}','sanity','r1234567890abcde','production');
-    insert into public.sanity_provisioning_jobs(request_id,request_hash,restaurant_id,integration_id,name,slug,project_id,dataset,status,stage,retryable)
-    values('${sanityRequest}','${'c'.repeat(64)}','${restaurant}','${integration}','Nuevo Restaurante','nuevo-restaurante','r1234567890abcde','production','succeeded','completed',false);`);
+    insert into public.restaurant_integrations(id,restaurant_id,provider,external_project_id,external_dataset) values('${integration}','${restaurant}','sanity','lvtvr3ef','production');
+    insert into public.sanity_provisioning_jobs(request_id,request_hash,restaurant_id,integration_id,name,slug,project_id,external_project_id,dataset,status,stage,retryable)
+    values('${sanityRequest}','${'c'.repeat(64)}','${restaurant}','${integration}','Nuevo Restaurante','nuevo-restaurante','ra138101d442db33','lvtvr3ef','production','succeeded','completed',false);`);
 }, 30_000);
 
 afterAll(async () => db?.close());
@@ -211,6 +214,7 @@ describe('Astro provisioning persistence and isolation', () => {
       ],
     );
     expect(result.rows[0].result).toMatchObject({ status: 'succeeded', stage: 'completed' });
+    expect(result.rows[0].result).toMatchObject({ project_id: 'lvtvr3ef' });
     const state = await db.query(
       `select r.status,w.desired_version,w.installed_version,w.custom_domain,w.custom_domain_status,
        d.repository,d.repository_id,d.site_url,e.granted,m.enabled
