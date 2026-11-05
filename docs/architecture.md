@@ -43,4 +43,4 @@ Las webs públicas pueden conservar diseños propios siempre que consuman este c
 
 ## Publicación observable
 
-[Iteración 4](publication-tracking.md): registro de operaciones sin contenido editorial, evidencia de la misma instantánea GROQ y callbacks OIDC del workflow Pages existente. No hay un segundo disparador. La edición no espera a que termine el despliegue.
+[Iteración 4](publication-tracking.md): registro de operaciones sin contenido editorial, evidencia de la misma instantánea GROQ y callbacks OIDC del workflow Pages existente. Salitre conserva su webhook; las instancias aprovisionadas reciben un único dispatch backend después de confirmar Sanity. La edición no espera a que termine el despliegue.

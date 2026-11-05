@@ -7,6 +7,7 @@ import { observePublication } from '../../../shared/publication-mutation.ts';
 import { publicationAdmin, publicationJournal } from '../_shared/publications.ts';
 import { sanityStore } from '../_shared/sanity.ts';
 import { resolveIntegrationCredential } from '../_shared/integration-credentials.ts';
+import { githubManagement, githubProvisioningConfiguration } from '../_shared/github-management.ts';
 Deno.serve(
   handler(async (request) => {
     const { client, user } = await authenticate(request);
@@ -80,14 +81,24 @@ Deno.serve(
           input.action === 'restore'
         ) {
           publicationId = input.operationId || crypto.randomUUID();
-          const journal = await publicationJournal(admin, {
-            ...integration,
-            operationId: publicationId,
-            actorId: user.id,
-            documentId: input.id,
-            action: input.action,
-            previousRev: input.publishedRev,
-          });
+          const journal = await publicationJournal(
+            admin,
+            {
+              ...integration,
+              operationId: publicationId,
+              actorId: user.id,
+              documentId: input.id,
+              action: input.action,
+              previousRev: input.publishedRev,
+            },
+            async (repository) => {
+              const configuration = githubProvisioningConfiguration((name) => Deno.env.get(name));
+              await githubManagement({ ...configuration, workflow: 'deploy.yml' }).dispatch(
+                repository,
+                {},
+              );
+            },
+          );
           return observePublication(store, { ...integration, documentId: input.id }, journal);
         }
         return store;

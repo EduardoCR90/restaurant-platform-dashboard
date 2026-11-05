@@ -23,10 +23,11 @@ export async function publicationJournal(
     action: 'publish' | 'withdraw' | 'restore';
     previousRev: string | null;
   },
+  dispatch: (repository: string) => Promise<void> = async () => {},
 ): Promise<PublicationJournal> {
   const { data: config, error } = await db
     .from('website_deployments')
-    .select('id,project_id,dataset')
+    .select('id,project_id,dataset,repository')
     .eq('restaurant_id', input.restaurantId)
     .eq('integration_id', input.integrationId)
     .eq('enabled', true)
@@ -36,6 +37,18 @@ export async function publicationJournal(
     config?.project_id === input.projectId && config?.dataset === input.dataset
       ? (config.id as string)
       : null;
+  let platformManaged = false;
+  if (target) {
+    const { data: provisioned, error: provisioningError } = await db
+      .from('astro_provisioning_jobs')
+      .select('request_id')
+      .eq('deployment_id', target)
+      .eq('status', 'succeeded')
+      .eq('stage', 'completed')
+      .maybeSingle();
+    checkDatabase(provisioningError);
+    platformManaged = Boolean(provisioned);
+  }
   const previous = input.previousRev
     ? await revisionFingerprint(input.projectId, input.dataset, input.documentId, input.previousRev)
     : null;
@@ -67,7 +80,32 @@ export async function publicationJournal(
         .eq('id', input.operationId)
         .eq('restaurant_id', input.restaurantId);
       checkDatabase(error);
-      if (target) checkDatabase((await db.rpc('reconcile_publications', { target })).error);
+      if (target) {
+        checkDatabase((await db.rpc('reconcile_publications', { target })).error);
+        if (platformManaged && config?.repository) {
+          try {
+            await dispatch(config.repository as string);
+          } catch {
+            console.error(
+              JSON.stringify({
+                event: 'publication_workflow_dispatch_failed',
+                deploymentId: target,
+                category: 'github_dispatch',
+              }),
+            );
+            checkDatabase(
+              (
+                await db
+                  .from('publication_operations')
+                  .update({ state: 'deployment_error', error_code: 'dispatch_failed' })
+                  .eq('id', input.operationId)
+                  .eq('restaurant_id', input.restaurantId)
+                  .eq('state', 'awaiting_deployment')
+              ).error,
+            );
+          }
+        }
+      }
     },
     async fail() {
       checkDatabase(
