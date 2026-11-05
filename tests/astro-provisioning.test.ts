@@ -542,6 +542,33 @@ describe('Astro instance provisioning', () => {
     await expect(missing.getRepository('owner/not-created')).resolves.toBeNull();
   });
 
+  it('dispatches the standard deploy workflow for a managed publication', async () => {
+    const configuration = githubProvisioningConfiguration(
+      (name) =>
+        ({
+          GITHUB_PROVISIONER_TOKEN: 'github-backend-secret-value',
+          GITHUB_REPOSITORY_OWNER: 'owner',
+          GITHUB_TEMPLATE_REPOSITORY: 'owner/template',
+          GITHUB_TEMPLATE_REPOSITORY_ID: '100',
+        })[name],
+    );
+    const requests: Request[] = [];
+    const client = githubManagement(
+      { ...configuration, workflow: 'deploy.yml' },
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        requests.push(new Request(input, init));
+        return new Response(null, { status: 204 });
+      }) as typeof fetch,
+    );
+
+    await client.dispatch('owner/restaurant', {});
+
+    expect(requests[0].url).toBe(
+      'https://api.github.com/repos/owner/restaurant/actions/workflows/deploy.yml/dispatches',
+    );
+    await expect(requests[0].clone().json()).resolves.toEqual({ ref: 'main', inputs: {} });
+  });
+
   it('rejects an incomplete GitHub repository response without adopting it', async () => {
     const configuration = githubProvisioningConfiguration(
       (name) =>

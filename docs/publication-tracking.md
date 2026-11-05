@@ -1,8 +1,10 @@
 # Iteración 4 — Publicación y actualización de la web
 
-## Flujo conservado
+## Disparador de publicación
 
-Sanity sigue enviando el webhook existente a `workflow_dispatch` de `restaurant-premium-sanity/.github/workflows/deploy.yml`. Los push a main y las ejecuciones manuales siguen usando ese mismo workflow, la acción oficial de Astro y GitHub Pages. El dashboard no hace dispatch ni introduce otro disparador. Guardar, descartar o subir una imagen no solicita despliegues desde el dashboard; el filtro del webhook debe seguir excluyendo drafts y versiones.
+Salitre conserva su webhook de Sanity existente y no recibe un segundo disparador. Las webs creadas por el aprovisionador se reconocen por la evidencia terminal de su trabajo Astro (`deployment_id`, `succeeded`, `completed`). Tras confirmar una publicación, retirada o restauración en Sanity, la función `content` despacha una única ejecución manual de `.github/workflows/deploy.yml` en `main` mediante la credencial backend ya usada por el aprovisionador. El repositorio procede de `website_deployments`, nunca del navegador. Guardar borradores, descartar o subir una imagen no inicia despliegues.
+
+Si GitHub rechaza el dispatch, la publicación permanece en Sanity y el dashboard muestra `dispatch_failed`; no se reintenta ni se repite la mutación. Una respuesta ambigua tampoco se reintenta: si GitHub llegó a iniciar el workflow, su evidencia OIDC posterior recupera el estado. El token permanece únicamente en Supabase.
 
 El propietario validó el flujo editorial real al finalizar las iteraciones 2 y 3. Esta implementación añade observabilidad sin repetir migraciones de contenido ni cambiar los modelos del Studio.
 

@@ -35,6 +35,8 @@ export const publicationErrors: Record<string, string> = {
   not_configured: 'El seguimiento de esta web necesita configuración del administrador.',
   run_not_found:
     'No se ha podido confirmar un despliegue que incluya esta publicación. Revisa el disparador antes de reconstruir la web.',
+  dispatch_failed:
+    'GitHub no aceptó el inicio del despliegue. El contenido sigue publicado en Sanity.',
   deployment_failed:
     'La actualización de la web ha fallado. El contenido sigue guardado en Sanity.',
   deployment_expired: 'El despliegue no ha confirmado su finalización. La edición puede continuar.',
