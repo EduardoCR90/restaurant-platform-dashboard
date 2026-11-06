@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 const project = 'wanrzgumoamryuybmopa';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const restaurantSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const requiredSanitySecrets = [
   'SANITY_PROVISIONER_TOKEN',
   'SANITY_PROVISIONING_ORGANIZATION_ID',
@@ -12,8 +13,12 @@ export const requiredSanitySecrets = [
   'APP_INTEGRATION_CREDENTIAL_KEYS',
 ];
 
-export function diagnosticQuery(requestId, correlation) {
-  assert.match(requestId, uuid);
+export function diagnosticQuery(selector, correlation) {
+  const requestId = typeof selector === 'string' ? selector : selector?.requestId;
+  const slug = typeof selector === 'object' ? selector?.restaurantSlug : undefined;
+  assert.notEqual(Boolean(requestId), Boolean(slug));
+  if (requestId) assert.match(requestId, uuid);
+  if (slug) assert.match(slug, restaurantSlug);
   const fallback = correlation
     ? (() => {
         const failedAt = new Date(correlation.failedAtUtc);
@@ -21,6 +26,12 @@ export function diagnosticQuery(requestId, correlation) {
         return ` or (r.status='failed' and r.stage='sanity' and r.error_code='configuration' and r.updated_at between '${failedAt.toISOString()}'::timestamptz-interval '10 minutes' and '${failedAt.toISOString()}'::timestamptz+interval '10 minutes')`;
       })()
     : '';
+  const where = requestId
+    ? `(r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid${fallback})`
+    : `exists(select 1 from public.restaurants target_restaurant where target_restaurant.id=r.restaurant_id and target_restaurant.slug='${slug}')`;
+  const order = requestId
+    ? `case when r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid then 0 else 1 end,abs(extract(epoch from r.updated_at-'${correlation ? new Date(correlation.failedAtUtc).toISOString() : '1970-01-01T00:00:00.000Z'}'::timestamptz))`
+    : 'r.created_at desc';
   return `select r.request_id,r.status,r.stage,r.error_code,r.retryable,r.attempt_count,r.sanity_request_id,r.updated_at,
  s.request_id as child_request_id,s.status as child_status,s.stage as child_stage,s.error_code as child_error_code,s.retryable as child_retryable,s.attempt_count as child_attempt_count,s.updated_at as child_updated_at,
  a.request_id as astro_request_id,a.status as astro_status,a.stage as astro_stage,a.error_code as astro_error_code,a.retryable as astro_retryable,a.attempt_count as astro_attempt_count,a.repository,a.repository_id,a.specification_hash,a.source_commit,a.manifest_hash,a.deployment_id,a.lease_expires_at>now() as astro_has_active_lease,
@@ -32,8 +43,8 @@ export function diagnosticQuery(requestId, correlation) {
  from public.restaurant_provisioning_jobs r
  left join public.sanity_provisioning_jobs s on s.request_id=r.sanity_request_id
  left join public.astro_provisioning_jobs a on a.request_id=r.astro_request_id
- where r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid${fallback}
- order by case when r.request_id='${requestId}'::uuid or r.sanity_request_id='${requestId}'::uuid then 0 else 1 end,abs(extract(epoch from r.updated_at-'${correlation ? new Date(correlation.failedAtUtc).toISOString() : '1970-01-01T00:00:00.000Z'}'::timestamptz))
+ where ${where}
+ order by ${order}
  limit 1`;
 }
 
@@ -101,8 +112,7 @@ export function safeCallbackDiagnostic(input) {
   return null;
 }
 
-export async function diagnoseProvisioning(requestId, api, correlation) {
-  assert.match(requestId, uuid);
+export async function diagnoseProvisioning(selector, api, correlation) {
   let secretEntries;
   try {
     secretEntries = await api('secrets');
@@ -113,7 +123,7 @@ export async function diagnoseProvisioning(requestId, api, correlation) {
   try {
     rows = await api('database/query', {
       method: 'POST',
-      body: { query: diagnosticQuery(requestId, correlation), read_only: true },
+      body: { query: diagnosticQuery(selector, correlation), read_only: true },
     });
   } catch {
     throw new DiagnosticFailure('request_state');
@@ -254,12 +264,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     assert.equal(process.env.GITHUB_REF, 'refs/heads/main');
     assert.equal(process.env.GITHUB_REPOSITORY, 'EduardoCR90/restaurant-platform-dashboard');
     assert.equal(process.env.GITHUB_RUN_ATTEMPT, '1');
+    const requestId = process.env.PROVISIONING_REQUEST_ID?.trim();
+    const slug = process.env.PROVISIONING_RESTAURANT_SLUG?.trim();
+    assert.notEqual(Boolean(requestId), Boolean(slug));
+    const failedAtUtc = process.env.PROVISIONING_FAILED_AT_UTC?.trim();
     const result = await diagnoseProvisioning(
-      process.env.PROVISIONING_REQUEST_ID,
+      requestId ? { requestId } : { restaurantSlug: slug },
       managementApi(process.env.SUPABASE_ACCESS_TOKEN),
-      {
-        failedAtUtc: process.env.PROVISIONING_FAILED_AT_UTC,
-      },
+      failedAtUtc ? { failedAtUtc } : undefined,
     );
     console.log(JSON.stringify(result));
   } catch (error) {
