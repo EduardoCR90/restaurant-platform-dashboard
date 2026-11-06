@@ -103,7 +103,7 @@ test('diagnóstico identifica secretos ausentes y confirma que el hijo Sanity no
 });
 
 test('consulta acepta solo UUID y selecciona únicamente estado seguro', () => {
-  assert.match(diagnosticQuery(requestId), /where r\.request_id=/);
+  assert.match(diagnosticQuery(requestId), /where \(r\.request_id=/);
   assert.match(diagnosticQuery(requestId), /or r\.sanity_request_id=/);
   assert.match(diagnosticQuery(requestId), /left join public\.astro_provisioning_jobs/);
   assert.throws(() => diagnosticQuery("' or true--"));
@@ -118,6 +118,16 @@ test('consulta acepta solo UUID y selecciona únicamente estado seguro', () => {
       failedAtUtc: 'not-a-date',
     }),
   );
+});
+
+test('consulta permite localizar de forma exacta el último job por slug', () => {
+  const query = diagnosticQuery({ restaurantSlug: 'canaryburger' });
+  assert.match(query, /target_restaurant\.slug='canaryburger'/);
+  assert.match(query, /order by r\.created_at desc/);
+  assert.match(query, /limit 1$/);
+  assert.throws(() => diagnosticQuery({ restaurantSlug: "canaryburger' or true--" }));
+  assert.throws(() => diagnosticQuery({}));
+  assert.throws(() => diagnosticQuery({ requestId, restaurantSlug: 'canaryburger' }));
 });
 
 test('ausencia de fila conserva el diagnóstico seguro de nombres', async () => {
@@ -224,6 +234,7 @@ test('workflow es manual, de solo lectura y no persiste diagnósticos', async ()
   );
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /permissions:\n {2}contents: read/);
+  assert.match(workflow, /PROVISIONING_RESTAURANT_SLUG/);
   assert.doesNotMatch(workflow, /\npush:|schedule:|upload-artifact|supabase functions deploy/);
   assert.doesNotMatch(
     workflow,
